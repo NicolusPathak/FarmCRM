@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(grep -q \"Ready in\" /tmp/dev.log)",
+      "Bash(curl -s -o /dev/null http://localhost:3000/login)"
+    ]
+  }
+}
