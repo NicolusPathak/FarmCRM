@@ -214,11 +214,8 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                 <Sparkles size={18} strokeWidth={1.8} />
               </div>
             </div>
-            <div style={{ borderTop: '1px solid rgba(237,230,216,0.1)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11.5, color: 'rgba(237,230,216,0.55)' }}>$1 spent · 1 point</span>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: 'rgba(237,230,216,0.8)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(237,230,216,0.15)' }}>
-                {customer.points_balance >= 1000 ? 'Gold' : customer.points_balance >= 500 ? 'Silver' : 'Bronze'}
-              </span>
+            <div style={{ borderTop: '1px solid rgba(237,230,216,0.1)', paddingTop: 12, fontSize: 11.5, color: 'rgba(237,230,216,0.55)' }}>
+              $1 spent · 1 point
             </div>
 
             {/* Adjust-points UI — admin only. Type a signed integer; +50
