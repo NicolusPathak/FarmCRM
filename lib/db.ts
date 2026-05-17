@@ -281,11 +281,34 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
   // Customer must exist and not be archived (mirrors the PATCH path).
   const { data: cust } = await sb
     .from('customers')
-    .select('id, full_name, archived_at')
+    .select('id, full_name, archived_at, points_balance')
     .eq('id', form.customer_id)
     .maybeSingle();
   if (!cust) clientError('Customer not found.', 404);
   if ((cust as any).archived_at) clientError('That customer has been deleted and cannot receive orders.');
+
+  // Points redemption (optional). Staff types how many points the customer
+  // wants to use and the dollar discount that applies. Both default to 0.
+  const pointsRedeemed = Math.max(0, Math.floor(Number(form.points_redeemed ?? 0)));
+  const rawDiscount    = Math.max(0, Number(form.redemption_discount ?? 0));
+  const redemptionDiscount = Math.round(rawDiscount * 100) / 100; // 2-decimal money
+  if (pointsRedeemed > 0 || redemptionDiscount > 0) {
+    if (!Number.isFinite(pointsRedeemed) || !Number.isFinite(redemptionDiscount)) {
+      clientError('Invalid points/discount values.');
+    }
+    // If they say "use points" they must specify some discount too (or vice
+    // versa) — preventing accidental one-sided entries.
+    if (pointsRedeemed === 0 && redemptionDiscount > 0) {
+      clientError('Enter how many points are being used for this discount.');
+    }
+    if (pointsRedeemed > 0 && redemptionDiscount === 0) {
+      clientError('Enter the dollar discount for the redeemed points.');
+    }
+    const have = Number((cust as any).points_balance ?? 0);
+    if (pointsRedeemed > have) {
+      clientError(`Customer has only ${have} points. Cannot redeem ${pointsRedeemed}.`);
+    }
+  }
 
   const { data: num, error: numErr } = await sb.rpc('get_next_order_number');
   if (numErr) {
@@ -297,16 +320,18 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
   const nowIso = new Date().toISOString();
 
   const orderPayload = {
-    order_number:  num as string,
-    customer_id:   form.customer_id,
-    order_date:    nowIso,
-    subtotal:      0,
-    total:         0,
-    points_earned: 0,
+    order_number:        num as string,
+    customer_id:         form.customer_id,
+    order_date:          nowIso,
+    subtotal:            0,
+    total:               0,
+    points_earned:       0,
+    points_redeemed:     pointsRedeemed,
+    redemption_discount: redemptionDiscount,
     notes,
-    status:        'active',
+    status:              'active',
     payment_method,
-    change_log:    [{ timestamp: nowIso, type: 'created', summary: `Order created by ${actor.name} with ${form.items.length} item${form.items.length !== 1 ? 's' : ''}` }],
+    change_log:          [{ timestamp: nowIso, type: 'created', summary: `Order created by ${actor.name} with ${form.items.length} item${form.items.length !== 1 ? 's' : ''}${pointsRedeemed > 0 ? ` (${pointsRedeemed} pts redeemed for $${redemptionDiscount.toFixed(2)} off)` : ''}` }],
   };
 
   const { data: order, error: orderErr } = await sb
@@ -367,6 +392,8 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
         subtotal: finalOrder.subtotal,
         total: finalOrder.total,
         points_earned: finalOrder.points_earned,
+        points_redeemed: pointsRedeemed,
+        redemption_discount: redemptionDiscount,
         notes: finalOrder.notes,
         payment_method,
       },
@@ -379,10 +406,17 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
   }
 
   // Points only commit after the audit row exists.
-  await sb.rpc('increment_points' as any, {
-    customer_id_input: form.customer_id,
-    points_to_add:     finalOrder.points_earned,
-  });
+  //   net change = points_earned (from net subtotal) − points_redeemed
+  // One increment call covers both directions. The customers CHECK enforces
+  // we can't push the balance below zero (the earlier in-app check is the
+  // friendly version of the same rule).
+  const netPointsChange = finalOrder.points_earned - pointsRedeemed;
+  if (netPointsChange !== 0) {
+    await sb.rpc('increment_points' as any, {
+      customer_id_input: form.customer_id,
+      points_to_add:     netPointsChange,
+    });
+  }
 
   return finalOrder;
 }

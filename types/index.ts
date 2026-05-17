@@ -42,6 +42,8 @@ export interface Order {
   subtotal: number;
   total: number;
   points_earned: number;
+  points_redeemed: number;
+  redemption_discount: number;
   notes: string | null;
   status: OrderStatus;
   payment_method: PaymentMethod;
@@ -80,6 +82,10 @@ export interface NewOrderForm {
   notes: string;
   items: NewOrderItemForm[];
   payment_method: PaymentMethod;
+  // Optional points redemption — staff types how many points the customer
+  // is using and the dollar discount that applies. Both default to 0.
+  points_redeemed?: number;
+  redemption_discount?: number;
 }
 
 export type StaffRole = 'admin' | 'staff';

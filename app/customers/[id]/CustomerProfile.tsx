@@ -30,7 +30,45 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
   const [draft,    setDraft]    = useState({ ...init });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
+  // Inline points-adjust state. Admin types a signed delta + reason; the
+  // server validates the resulting balance stays >= 0.
+  const [adjusting,    setAdjusting]    = useState(false);
+  const [adjustDelta,  setAdjustDelta]  = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [adjustSaving, setAdjustSaving] = useState(false);
   const isAdmin = isAdminOrOwner(role);
+
+  async function commitAdjust() {
+    const delta = parseInt(adjustDelta, 10);
+    if (!Number.isInteger(delta) || delta === 0) {
+      toast.error('Enter a positive or negative whole number.');
+      return;
+    }
+    setAdjustSaving(true);
+    await withLoading(async () => {
+      try {
+        const res = await fetch(`/api/customers/${customer.id}/points`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta, reason: adjustReason.trim() || undefined }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? 'Adjustment failed');
+        const data = await res.json();
+        setCustomer(c => ({ ...c, points_balance: data.points_balance }));
+        setAdjusting(false); setAdjustDelta(''); setAdjustReason('');
+        toast.success(delta > 0 ? `Added ${delta} points` : `Deducted ${-delta} points`);
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err.message);
+      } finally {
+        setAdjustSaving(false);
+      }
+    });
+  }
+
+  function cancelAdjust() {
+    setAdjusting(false); setAdjustDelta(''); setAdjustReason(''); setAdjustSaving(false);
+  }
 
   async function deleteCustomer() {
     setDeleting(true);
@@ -182,6 +220,88 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                 {customer.points_balance >= 1000 ? 'Gold' : customer.points_balance >= 500 ? 'Silver' : 'Bronze'}
               </span>
             </div>
+
+            {/* Adjust-points UI — admin only. Type a signed integer; +50
+                credits, -100 deducts. Server validates the new balance can't
+                go negative. */}
+            {isAdmin && (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(237,230,216,0.1)' }}>
+                {adjusting ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <input
+                      type="number"
+                      step="1"
+                      autoFocus
+                      value={adjustDelta}
+                      onChange={(e) => setAdjustDelta(e.target.value)}
+                      placeholder="+50 or -100"
+                      disabled={adjustSaving}
+                      style={{
+                        padding: '8px 10px', fontSize: 14,
+                        background: 'rgba(237,230,216,0.08)',
+                        border: '1px solid rgba(237,230,216,0.18)',
+                        borderRadius: 8, color: 'var(--sidebar-text)',
+                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={adjustReason}
+                      onChange={(e) => setAdjustReason(e.target.value)}
+                      placeholder="Reason (e.g. $5 off — 100 pts redeemed)"
+                      disabled={adjustSaving}
+                      maxLength={280}
+                      style={{
+                        padding: '8px 10px', fontSize: 13,
+                        background: 'rgba(237,230,216,0.08)',
+                        border: '1px solid rgba(237,230,216,0.18)',
+                        borderRadius: 8, color: 'var(--sidebar-text)',
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={commitAdjust}
+                        disabled={adjustSaving || !adjustDelta}
+                        className="btn-primary"
+                        style={{ flex: 1, padding: '8px', fontSize: 12.5 }}
+                      >
+                        {adjustSaving ? <Loader2 size={12} className="spin" /> : <Check size={13} />}
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelAdjust}
+                        disabled={adjustSaving}
+                        style={{
+                          padding: '8px 12px', fontSize: 12.5,
+                          background: 'transparent',
+                          border: '1px solid rgba(237,230,216,0.2)',
+                          borderRadius: 8, cursor: 'pointer',
+                          color: 'rgba(237,230,216,0.85)',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAdjusting(true)}
+                    style={{
+                      width: '100%', padding: '8px',
+                      background: 'rgba(237,230,216,0.08)',
+                      border: '1px solid rgba(237,230,216,0.18)',
+                      borderRadius: 8, cursor: 'pointer',
+                      color: 'rgba(237,230,216,0.9)', fontSize: 12.5, fontWeight: 600,
+                      fontFamily: 'inherit',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    <Pencil size={12} /> Adjust points
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

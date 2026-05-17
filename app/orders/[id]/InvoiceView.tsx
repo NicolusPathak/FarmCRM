@@ -121,15 +121,19 @@ export default function InvoiceView({ order: init, role }: Props) {
   const customerArchived = !!customer?.archived_at;
   const changeLog = (order.change_log ?? []) as OrderLogEntry[];
 
-  // 24-hour edit window — computed client-side only to avoid hydration mismatch
+  // 24-hour edit window — applies to staff only. Admin and owner can edit
+  // any active order regardless of age, matching the server-side rule.
+  // The hard 24h lockAt timestamp is still computed for the lock-window
+  // hint text shown below the totals.
   const lockAt = useMemo(
     () => new Date(new Date(order.created_at).getTime() + 24 * 60 * 60 * 1000),
     [order.created_at]
   );
   const [isEditable, setIsEditable] = useState(false);
   useEffect(() => {
-    setIsEditable(!isVoid && Date.now() < lockAt.getTime());
-  }, [isVoid, lockAt]);
+    if (isVoid) { setIsEditable(false); return; }
+    setIsEditable(isAdmin ? true : Date.now() < lockAt.getTime());
+  }, [isVoid, lockAt, isAdmin]);
 
   function startEdit() {
     setDraftItems(items.map(i => ({ item_name: i.item_name, quantity: i.quantity, unit_price: i.unit_price })));
@@ -448,11 +452,24 @@ export default function InvoiceView({ order: init, role }: Props) {
           {/* Totals (view mode) */}
           {!editing && (
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, opacity: isVoid ? 0.5 : 1 }}>
-              <div style={{ maxWidth: 260, marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ maxWidth: 280, marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
                   <span style={{ color: 'var(--ink-muted)' }}>Subtotal</span>
                   <span style={{ fontWeight: 600, textDecoration: isVoid ? 'line-through' : 'none' }}>{formatCurrency(order.subtotal)}</span>
                 </div>
+
+                {/* Loyalty discount, only when redeemed */}
+                {order.redemption_discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                    <span style={{ color: 'var(--ink-muted)' }}>
+                      Loyalty discount ({order.points_redeemed} pts)
+                    </span>
+                    <span style={{ fontWeight: 600, color: 'var(--brand)', textDecoration: isVoid ? 'line-through' : 'none' }}>
+                      −{formatCurrency(order.redemption_discount)}
+                    </span>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, alignItems: 'center' }}>
                   <span style={{ color: 'var(--ink-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Sparkles size={12} /> Points {isVoid ? 'reversed' : 'earned'}</span>
                   <span className="badge badge-neutral" style={{ opacity: isVoid ? 0.5 : 1 }}>{isVoid ? '-' : '+'}{order.points_earned}</span>
@@ -476,9 +493,11 @@ export default function InvoiceView({ order: init, role }: Props) {
           {/* Edit window status (active orders only) */}
           {!editing && !isVoid && (
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-muted)', padding: '4px 0', display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
-              {isEditable
-                ? <><Pencil size={12} /> Editable until {formatDateTime(lockAt.toISOString())}</>
-                : <><Lock size={12} /> Edit window closed {formatDate(lockAt.toISOString())}</>}
+              {isAdmin
+                ? <><Pencil size={12} /> Editable anytime (admin / owner)</>
+                : isEditable
+                  ? <><Pencil size={12} /> Editable until {formatDateTime(lockAt.toISOString())}</>
+                  : <><Lock size={12} /> Edit window closed {formatDate(lockAt.toISOString())} — ask an admin to edit.</>}
             </div>
           )}
 

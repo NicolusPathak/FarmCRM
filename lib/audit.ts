@@ -24,6 +24,7 @@ export type AuditAction =
   | 'pin_reset'
   | 'staff_login'
   | 'owner_login'
+  | 'points_adjusted'
   | 'order_reassigned'
   // Export events — written by export endpoints so the owner can audit who
   // pulled what data out and when.

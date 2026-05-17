@@ -94,11 +94,28 @@ export default function NewOrderForm({ preselectedCustomer }: Props) {
   const [items,         setItems]         = useState<NewOrderItemForm[]>([{ ...BLANK }]);
   const [notes,         setNotes]         = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [redeemPoints,    setRedeemPoints]    = useState(''); // string so empty stays empty
+  const [redeemDiscount,  setRedeemDiscount]  = useState('');
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState('');
 
-  const subtotal     = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-  const pointsEarned = Math.floor(subtotal);
+  const subtotal = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  // Parse + clamp the redemption inputs for live total preview. Server
+  // validates again before insert, so this is just for display.
+  const redeemPointsN   = Math.max(0, Math.floor(Number(redeemPoints) || 0));
+  const redeemDiscountN = Math.max(0, Math.round((Number(redeemDiscount) || 0) * 100) / 100);
+  const discountCapped  = Math.min(redeemDiscountN, subtotal);
+  const total           = Math.max(0, subtotal - discountCapped);
+  const pointsEarned    = Math.floor(total);
+  const customerBalance = customer?.points_balance ?? 0;
+  const redeemError = (() => {
+    if (redeemPointsN === 0 && redeemDiscountN === 0) return null;
+    if (redeemPointsN > 0 && redeemDiscountN === 0)   return 'Enter the dollar discount for the redeemed points.';
+    if (redeemPointsN === 0 && redeemDiscountN > 0)   return 'Enter how many points are being used.';
+    if (redeemPointsN > customerBalance)              return `Customer only has ${customerBalance} points.`;
+    if (redeemDiscountN > subtotal)                   return `Discount can't exceed the subtotal of $${subtotal.toFixed(2)}.`;
+    return null;
+  })();
 
   const updateItem = (idx: number, f: keyof NewOrderItemForm, v: string | number) =>
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, [f]: v } : item));
@@ -109,11 +126,23 @@ export default function NewOrderForm({ preselectedCustomer }: Props) {
     if (items.some(i => !i.item_name.trim()))   { setError('All items need a name.'); return; }
     if (items.some(i => i.quantity <= 0))       { setError('Quantity must be greater than 0.'); return; }
     if (items.some(i => i.unit_price <= 0))     { setError('Price must be greater than $0.'); return; }
+    if (redeemError)                            { setError(redeemError); return; }
     setSaving(true);
     await withLoading(async () => {
       try {
-        const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer_id: customer.id, notes, items, payment_method: paymentMethod }) });
-        const d   = await res.json();
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id:         customer.id,
+            notes,
+            items,
+            payment_method:      paymentMethod,
+            points_redeemed:     redeemPointsN,
+            redemption_discount: redeemDiscountN,
+          }),
+        });
+        const d = await res.json();
         if (!res.ok) throw new Error(d.error ?? 'Failed');
         toast.success(`Order ${d.order_number} saved`);
         router.push(`/orders/${d.id}`);
@@ -229,13 +258,63 @@ export default function NewOrderForm({ preselectedCustomer }: Props) {
                 <span style={{ color: 'var(--ink-muted)' }}>Subtotal ({items.length} item{items.length !== 1 ? 's' : ''})</span>
                 <span style={{ fontWeight: 600 }}>{formatCurrency(subtotal)}</span>
               </div>
+
+              {/* Redemption inputs — both default empty, optional. Visible only
+                  after a customer is selected so we can show their balance. */}
+              {customer && (
+                <div style={{
+                  marginTop: 6, padding: '12px 12px 10px', borderRadius: 10,
+                  background: 'var(--surface-2)', border: '1px solid var(--border-soft)',
+                  display: 'flex', flexDirection: 'column', gap: 8,
+                }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-muted)' }}>
+                    Use loyalty points <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· customer has {customerBalance.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>Points used</span>
+                      <input
+                        type="number" min="0" step="1" inputMode="numeric"
+                        value={redeemPoints}
+                        onChange={(e) => setRedeemPoints(e.target.value)}
+                        placeholder="0"
+                        className="input-field"
+                        style={{ padding: '8px 10px', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}
+                      />
+                    </label>
+                    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>Discount $</span>
+                      <input
+                        type="number" min="0" step="0.01" inputMode="decimal"
+                        value={redeemDiscount}
+                        onChange={(e) => setRedeemDiscount(e.target.value)}
+                        placeholder="0.00"
+                        className="input-field"
+                        style={{ padding: '8px 10px', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}
+                      />
+                    </label>
+                  </div>
+                  {redeemError && (
+                    <div style={{ fontSize: 11.5, color: 'var(--danger)' }}>{redeemError}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Discount line only when there's an applied discount */}
+              {discountCapped > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                  <span style={{ color: 'var(--ink-muted)' }}>Loyalty discount ({redeemPointsN} pts)</span>
+                  <span style={{ fontWeight: 600, color: 'var(--brand)' }}>−{formatCurrency(discountCapped)}</span>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, alignItems: 'center' }}>
                 <span style={{ color: 'var(--ink-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Sparkles size={12} /> Points to earn</span>
                 <span className="badge badge-neutral">+{pointsEarned}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 12, marginTop: 4, borderTop: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
-                <span className="font-display" style={{ fontSize: 24, fontWeight: 400 }}>{formatCurrency(subtotal)}</span>
+                <span className="font-display" style={{ fontSize: 24, fontWeight: 400 }}>{formatCurrency(total)}</span>
               </div>
             </div>
 

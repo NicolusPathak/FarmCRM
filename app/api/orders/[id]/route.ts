@@ -62,12 +62,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // ── VOID action ───────────────────────────────────────────────
   if (body.action === 'void') {
-    const pts = (existing as any).points_earned as number;
+    const pts             = (existing as any).points_earned as number;
+    const pointsRedeemed  = ((existing as any).points_redeemed ?? 0) as number;
+    // Net change on void:
+    //   refund the redeemed points (+pointsRedeemed)
+    //   reverse the earned points (-pts)
+    const netPointsChange = pointsRedeemed - pts;
+
+    const summaryParts: string[] = [];
+    if (pts > 0)            summaryParts.push(`${pts} pts reversed`);
+    if (pointsRedeemed > 0) summaryParts.push(`${pointsRedeemed} pts refunded`);
+    const ptsSummary = summaryParts.length > 0 ? ` ${summaryParts.join(', ')} on customer balance.` : '';
 
     const entry: OrderLogEntry = {
       timestamp: new Date().toISOString(),
       type:      'voided',
-      summary:   `Order voided by ${actor.name}.${pts > 0 ? ` ${pts} pts reversed from customer.` : ''}`,
+      summary:   `Order voided by ${actor.name}.${ptsSummary}`,
     };
     const newLog = [...(((existing as any).change_log as OrderLogEntry[]) ?? []), entry];
 
@@ -102,6 +112,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         changes: {
           total: (existing as any).total,
           points_reversed: pts,
+          points_refunded: pointsRedeemed,
         },
       });
     } catch (auditErr) {
@@ -110,12 +121,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Could not record void. No change made.' }, { status: 500 });
     }
 
-    // Reverse points last — these can be re-done from the audit row if they fail.
-    if (pts > 0) {
-      const ptsErr = await adjustPoints(sb, (existing as any).customer_id, -pts);
+    // Apply the net points change last — single RPC call covers both the
+    // earned-reversal and the redemption-refund.
+    if (netPointsChange !== 0) {
+      const ptsErr = await adjustPoints(sb, (existing as any).customer_id, netPointsChange);
       if (ptsErr) {
-        console.error('[api:PATCH order void] points reversal', ptsErr);
-        return NextResponse.json({ error: 'Order voided but points could not be reversed. Contact support.' }, { status: 500 });
+        console.error('[api:PATCH order void] points adjust', ptsErr);
+        return NextResponse.json({ error: 'Order voided but points could not be adjusted. Contact support.' }, { status: 500 });
       }
     }
 
@@ -127,13 +139,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   }
 
-  // ── EDIT action (24h window only) ─────────────────────────────
-  const ageMs = Date.now() - new Date((existing as any).created_at).getTime();
-  if (ageMs > 24 * 60 * 60 * 1000) {
-    return NextResponse.json(
-      { error: 'Edit window has expired (orders can only be modified within 24 hours of creation)' },
-      { status: 403 }
-    );
+  // ── EDIT action ───────────────────────────────────────────────
+  // Staff are bound by a 24-hour edit window (prevents historical-mess /
+  // late-fraud). Admin and owner can fix older orders without restriction.
+  const isManager = actor.role === 'admin' || actor.role === 'owner';
+  if (!isManager) {
+    const ageMs = Date.now() - new Date((existing as any).created_at).getTime();
+    if (ageMs > 24 * 60 * 60 * 1000) {
+      return NextResponse.json(
+        { error: 'Edit window has expired — only admin or owner can edit orders older than 24 hours.' },
+        { status: 403 }
+      );
+    }
   }
 
   const { items, notes, customer_id } = body;
