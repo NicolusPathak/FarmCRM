@@ -56,9 +56,19 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
     setSaving(true);
     await withLoading(async () => {
       try {
+        // Only send the editable fields. The full `draft` carries
+        // points_balance + customer_number which the API rejects (and
+        // produces the "field cannot be edited here" error users saw).
+        const payload = {
+          full_name:    draft.full_name,
+          phone_number: draft.phone_number,
+          street:       draft.street,
+          city:         draft.city,
+          zip_code:     draft.zip_code,
+        };
         const res = await fetch(`/api/customers/${customer.id}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(draft),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error((await res.json()).error ?? 'Save failed');
         setCustomer(await res.json());
