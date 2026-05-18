@@ -69,7 +69,7 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--sidebar-text)', lineHeight: 1.15, letterSpacing: '-0.01em' }}>Chaudhary Farm</div>
-            <div style={{ fontSize: 10.5, color: 'var(--sidebar-text-mute)', marginTop: 3, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Meat Shop</div>
+            <div style={{ fontSize: 9.5, color: 'var(--sidebar-text-mute)', marginTop: 3, lineHeight: 1.3 }}>14501 Warbler Ln, Haslet, TX 76052</div>
           </div>
         </div>
       </div>
