@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiAdmin } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logAudit } from '@/lib/audit';
+import { safeError } from '@/lib/api-error';
 
 const MAX_NAME = 80;
 
@@ -47,7 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       session_version: nextVersion,
     } as any)
     .eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return safeError(error, 'Could not revoke PIN.', 'DELETE /api/staff/[id]');
 
   await logAudit({
     actor: auth.user,
@@ -100,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from('staff_users')
     .update({ name } as any)
     .eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return safeError(error, 'Could not rename.', 'PATCH /api/staff/[id]');
 
   await logAudit({
     actor: auth.user,

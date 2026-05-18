@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiAdmin } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { logAudit } from '@/lib/audit';
+import { safeError } from '@/lib/api-error';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await apiAdmin();
@@ -24,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .from('customers')
     .update({ last_contacted_at: now, contacted_by_id: auth.user.id } as any)
     .eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return safeError(error, 'Could not update customer.', 'retention/contact');
 
   await logAudit({
     actor: auth.user,
@@ -58,7 +59,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .from('customers')
     .update({ last_contacted_at: null, contacted_by_id: null } as any)
     .eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return safeError(error, 'Could not update customer.', 'retention/contact');
 
   await logAudit({
     actor: auth.user,

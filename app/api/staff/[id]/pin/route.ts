@@ -7,6 +7,7 @@ import { apiAdmin } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { hashPin } from '@/lib/session';
 import { logAudit } from '@/lib/audit';
+import { safeError } from '@/lib/api-error';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await apiAdmin();
@@ -76,7 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if ((error as any).code === '23505') {
       return NextResponse.json({ error: 'That PIN is already in use. Try a different one.' }, { status: 409 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return safeError(error, 'Could not reset PIN.', 'PUT /api/staff/[id]/pin');
   }
 
   await logAudit({

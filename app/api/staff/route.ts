@@ -4,19 +4,24 @@ import { apiAdmin } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { hashPin } from '@/lib/session';
 import { logAudit } from '@/lib/audit';
+import { safeError } from '@/lib/api-error';
 
 export async function GET() {
   const auth = await apiAdmin();
   if (auth.error) return auth.error;
 
-  const sb = createSupabaseAdminClient();
-  const { data, error } = await sb
-    .from('staff_users')
-    .select('id, name, role, active, created_at, created_by, archived_at')
-    .is('archived_at', null)
-    .order('created_at', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ staff: data ?? [] });
+  try {
+    const sb = createSupabaseAdminClient();
+    const { data, error } = await sb
+      .from('staff_users')
+      .select('id, name, role, active, created_at, created_by, archived_at')
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
+    if (error) return safeError(error, 'Could not load staff.', 'GET /api/staff');
+    return NextResponse.json({ staff: data ?? [] });
+  } catch (err) {
+    return safeError(err, 'Could not load staff.', 'GET /api/staff');
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -71,7 +76,7 @@ export async function POST(req: NextRequest) {
     if ((error as any).code === '23505') {
       return NextResponse.json({ error: 'That PIN is already in use. Try a different one.' }, { status: 409 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return safeError(error, 'Could not create PIN.', 'POST /api/staff');
   }
 
   await logAudit({

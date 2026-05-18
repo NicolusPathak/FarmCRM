@@ -9,16 +9,11 @@ import bcrypt from 'bcryptjs';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from '@/lib/session';
 import { logAudit } from '@/lib/audit';
+import { clientIp } from '@/lib/request-ip';
 
 const MAX_FAILS = 3;
 const WINDOW_MIN = 60;
 const KIND = 'owner';
-
-function clientIp(req: NextRequest): string {
-  const fwd = req.headers.get('x-forwarded-for');
-  if (fwd) return fwd.split(',')[0].trim();
-  return req.headers.get('x-real-ip') ?? 'local';
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));

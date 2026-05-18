@@ -254,23 +254,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     unit_price: Number(i.unit_price),
     line_total: Number(i.line_total),
   }));
+  // Snapshot is for ROLLBACK only. subtotal / total / points_earned are
+  // omitted on purpose: rollback re-inserts the original order_items,
+  // which fires `sync_order_totals` and recomputes those columns correctly.
+  // Setting them explicitly here would race the trigger's UPDATE.
   const orderSnap = {
-    subtotal:       Number((existing as any).subtotal),
-    total:          Number((existing as any).total),
-    points_earned:  Number((existing as any).points_earned),
     notes:          (existing as any).notes ?? null,
     change_log:     (existing as any).change_log ?? [],
     customer_id:    oldCustomerId,
     payment_method: oldPayment,
   };
-  // Snapshot points_balance for the affected customer(s).
-  const { data: oldCustRow } = await sb.from('customers').select('points_balance').eq('id', oldCustomerId).maybeSingle();
-  const oldCustPointsSnap = Number((oldCustRow as any)?.points_balance ?? 0);
-  let newCustPointsSnap: number | null = null;
-  if (customerChanged) {
-    const { data: newCustRow } = await sb.from('customers').select('points_balance').eq('id', newCustomerId).maybeSingle();
-    newCustPointsSnap = Number((newCustRow as any)?.points_balance ?? 0);
-  }
+  // (Customer points snapshots removed — rollback below uses delta reverse
+  // via `increment_points`, which is concurrency-safe and doesn't clobber
+  // other operations that may have touched the same customer's balance
+  // between snapshot-time and rollback-time.)
 
   // Defensive re-check just before we start mutating. The earlier check at the
   // top of this handler reads `existing` from a fetch that happened many
@@ -305,10 +302,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Could not save order items.' }, { status: 500 });
   }
 
+  // The `sync_order_totals` DB trigger already wrote correct subtotal /
+  // total / points_earned values when we inserted the items above. Do NOT
+  // overwrite them with JS-computed numbers — that was a future-drift trap
+  // (one off-by-one floating-point bug already shipped because JS and SQL
+  // disagreed on per-line rounding). The trigger is the source of truth.
+  // We keep `newSubtotal` / `newPointsEarned` as locals for the change_log
+  // summary + audit-diff below; that's all.
   const orderUpdate: Record<string, any> = {
-    subtotal:      newSubtotal,
-    total:         newSubtotal,
-    points_earned: newPointsEarned,
     notes:         trimmedNotes || null,
     change_log:    newLog,
   };
@@ -321,19 +322,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Could not save order.' }, { status: 500 });
   }
 
+  // Re-fetch what the `sync_order_totals` trigger ACTUALLY wrote, rather
+  // than trusting `newPointsEarned` computed in JS. If the trigger's math
+  // and the JS math ever disagree (e.g. someone tweaks the SQL FLOOR
+  // formula), the customer's balance will track the trigger — so the
+  // points delta must use the trigger's number, not ours.
+  const { data: triggerRow } = await sb
+    .from('orders')
+    .select('points_earned')
+    .eq('id', id)
+    .maybeSingle();
+  const triggerPointsEarned = Number((triggerRow as any)?.points_earned ?? newPointsEarned);
+
   if (customerChanged) {
     if (oldPointsEarned > 0) {
       const e1 = await adjustPoints(sb, oldCustomerId, -oldPointsEarned);
       if (e1) { console.error('[api:PATCH order edit] old points', e1); return NextResponse.json({ error: 'Order saved but points could not be reversed. Contact support.' }, { status: 500 }); }
     }
-    if (newPointsEarned > 0) {
-      const e2 = await adjustPoints(sb, newCustomerId, newPointsEarned);
+    if (triggerPointsEarned > 0) {
+      const e2 = await adjustPoints(sb, newCustomerId, triggerPointsEarned);
       if (e2) { console.error('[api:PATCH order edit] new points', e2); return NextResponse.json({ error: 'Order saved but points could not be credited. Contact support.' }, { status: 500 }); }
     }
   } else {
-    const delta = newPointsEarned - oldPointsEarned;
-    const e = await adjustPoints(sb, oldCustomerId, delta);
-    if (e) { console.error('[api:PATCH order edit] points delta', e); return NextResponse.json({ error: 'Order saved but points could not be updated. Contact support.' }, { status: 500 }); }
+    const delta = triggerPointsEarned - oldPointsEarned;
+    if (delta !== 0) {
+      const e = await adjustPoints(sb, oldCustomerId, delta);
+      if (e) { console.error('[api:PATCH order edit] points delta', e); return NextResponse.json({ error: 'Order saved but points could not be updated. Contact support.' }, { status: 500 }); }
+    }
   }
 
   try {
@@ -354,16 +369,43 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch (auditErr) {
     console.error('[api:PATCH order edit] audit failed — reverting in reverse order', auditErr);
 
-    // Reverse in the OPPOSITE order of mutation:
-    //   1. Restore customer point balances to absolute snapshot values
-    //      (NOT recomputed via delta — recomputation double-counts).
-    //   2. Restore the orders row to its snapshot.
-    //   3. Delete current order_items + reinsert the snapshot lines.
-    await sb.from('customers').update({ points_balance: oldCustPointsSnap } as any).eq('id', oldCustomerId);
-    if (customerChanged && newCustPointsSnap !== null) {
-      await sb.from('customers').update({ points_balance: newCustPointsSnap } as any).eq('id', newCustomerId);
+    // Reverse via DELTA, not absolute snapshot.
+    //
+    // Previous code used absolute snapshots (`UPDATE customers SET
+    // points_balance = <snapshot>`), which wipes any concurrent legitimate
+    // change made by another request between snapshot-time and now. The
+    // correct reversal is "undo the increment THIS request applied":
+    //   - customerChanged: re-credit oldCustomer's lost points, debit
+    //     newCustomer's gained points.
+    //   - non-customer-change: negate the single delta we applied.
+    //
+    // Any concurrent operations against the same customer (e.g. another
+    // order being created, manual adjust) layer on top correctly because
+    // each step goes through `increment_points` which is atomic.
+    if (customerChanged) {
+      if (oldPointsEarned > 0) {
+        const r1 = await adjustPoints(sb, oldCustomerId, oldPointsEarned);
+        if (r1) console.error('[api:PATCH order edit] rollback re-credit oldCustomer failed', r1);
+      }
+      if (triggerPointsEarned > 0) {
+        const r2 = await adjustPoints(sb, newCustomerId, -triggerPointsEarned);
+        if (r2) console.error('[api:PATCH order edit] rollback debit newCustomer failed', r2);
+      }
+    } else {
+      const delta = triggerPointsEarned - oldPointsEarned;
+      if (delta !== 0) {
+        const r = await adjustPoints(sb, oldCustomerId, -delta);
+        if (r) console.error('[api:PATCH order edit] rollback delta reverse failed', r);
+      }
     }
+
+    // Order row: restore the snapshot fields (notes / change_log / customer_id
+    // / payment_method only — subtotal / total / points_earned will be
+    // re-derived by the trigger when we reinsert items below).
     await sb.from('orders').update(orderSnap as any).eq('id', id);
+
+    // Items: delete current + reinsert snapshot. Trigger fires on insert
+    // and rewrites subtotal / total / points_earned to the old values.
     await sb.from('order_items').delete().eq('order_id', id);
     if (originalItemsSnap.length > 0) {
       await sb.from('order_items').insert(

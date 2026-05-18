@@ -6,16 +6,11 @@ import { cookies } from 'next/headers';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { SESSION_COOKIE, SESSION_MAX_AGE, hashPin, signSession } from '@/lib/session';
 import { logAudit } from '@/lib/audit';
+import { clientIp } from '@/lib/request-ip';
 
 const PIN_RE = /^\d{4}$/;
 const MAX_FAILS = 3;
 const WINDOW_MIN = 15;
-
-function clientIp(req: NextRequest): string {
-  const fwd = req.headers.get('x-forwarded-for');
-  if (fwd) return fwd.split(',')[0].trim();
-  return req.headers.get('x-real-ip') ?? 'local';
-}
 
 export async function POST(req: NextRequest) {
   const { pin } = await req.json().catch(() => ({}));

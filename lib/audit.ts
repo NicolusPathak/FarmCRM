@@ -10,6 +10,7 @@
 //     without a schema change).
 import { headers } from 'next/headers';
 import { createSupabaseAdminClient } from './supabase-server';
+import { clientIpFromHeaders } from './request-ip';
 import type { SessionUser, AuditChanges } from '@/types';
 
 export type EntityType = 'customer' | 'order' | 'staff' | 'export' | 'settings';
@@ -62,13 +63,15 @@ export async function logAuditOrFail(args: LogArgs): Promise<void> {
 
   // Capture per-request context (IP + UA) and fold into changes._meta.
   // headers() is server-only; if absent (e.g., in tests), we skip silently.
+  // IP comes from `clientIpFromHeaders` so the audit log matches what the
+  // rate-limit logic sees — prevents an attacker spoofing X-Forwarded-For
+  // from poisoning the audit trail with a fake "client IP."
   let meta: Record<string, string> = {};
   try {
     const h = await headers();
-    const fwd = h.get('x-forwarded-for');
-    const ip  = fwd ? fwd.split(',')[0].trim() : (h.get('x-real-ip') ?? '');
-    const ua  = h.get('user-agent') ?? '';
-    if (ip) meta.ip = ip;
+    const ip = clientIpFromHeaders(h);
+    const ua = h.get('user-agent') ?? '';
+    if (ip && ip !== 'local') meta.ip = ip;
     if (ua) meta.user_agent = ua.slice(0, 300);
   } catch { /* no request context (e.g., script/test) */ }
 

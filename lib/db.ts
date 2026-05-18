@@ -378,7 +378,41 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
 
   const finalOrder = final as Order & { customer?: { full_name: string } };
 
-  // Audit before committing points so a failed audit can fully unwind.
+  // ── Points commit happens BEFORE audit so we can detect a concurrent
+  //    redemption (DB CHECK 23514 fires when balance would go negative).
+  //    If the points call fails, we delete the order (cascades to items)
+  //    and abort cleanly before any audit row is written.
+  //
+  //    Why this order? The in-app `pointsRedeemed > have` check we ran
+  //    near the top of this function reads the balance, but another
+  //    request can decrement between then and now. The RPC is the only
+  //    place that ATOMICALLY checks-and-decrements. Without this guard
+  //    the previous code silently swallowed the CHECK error and left an
+  //    order on the books with the wrong customer balance.
+  const netPointsChange = finalOrder.points_earned - pointsRedeemed;
+  if (netPointsChange !== 0) {
+    const { error: pointsErr } = await sb.rpc('increment_points' as any, {
+      customer_id_input: form.customer_id,
+      points_to_add:     netPointsChange,
+    });
+    if (pointsErr) {
+      console.error('[db] increment_points failed — rolling back order', pointsErr);
+      // CASCADE on order_items.order_id removes the items.
+      await sb.from('orders').delete().eq('id', orderId);
+      if ((pointsErr as any).code === '23514') {
+        // CHECK constraint: customer's balance would have gone negative.
+        // Someone redeemed against the same balance from a concurrent request.
+        clientError(
+          `Customer does not have enough points to redeem ${pointsRedeemed}. Try again.`,
+          409,
+        );
+      }
+      throw new Error('Could not save order — points balance update failed.');
+    }
+  }
+
+  // Audit AFTER points commit, with compensating rollback if it fails.
+  // Rollback reverses both the points change AND the order/items.
   try {
     await logAuditOrFail({
       actor,
@@ -399,23 +433,17 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
       },
     });
   } catch (auditErr) {
-    console.error('[db] audit failed for createOrder — rolling back', auditErr);
-    await sb.from('order_items').delete().eq('order_id', orderId);
+    console.error('[db] audit failed for createOrder — rolling back order + points', auditErr);
+    // Reverse the points change first (failure here is unrecoverable, but
+    // we tried). Then delete the order — items cascade.
+    if (netPointsChange !== 0) {
+      await sb.rpc('increment_points' as any, {
+        customer_id_input: form.customer_id,
+        points_to_add:     -netPointsChange,
+      });
+    }
     await sb.from('orders').delete().eq('id', orderId);
     throw new Error('Could not save order.');
-  }
-
-  // Points only commit after the audit row exists.
-  //   net change = points_earned (from net subtotal) − points_redeemed
-  // One increment call covers both directions. The customers CHECK enforces
-  // we can't push the balance below zero (the earlier in-app check is the
-  // friendly version of the same rule).
-  const netPointsChange = finalOrder.points_earned - pointsRedeemed;
-  if (netPointsChange !== 0) {
-    await sb.rpc('increment_points' as any, {
-      customer_id_input: form.customer_id,
-      points_to_add:     netPointsChange,
-    });
   }
 
   return finalOrder;
