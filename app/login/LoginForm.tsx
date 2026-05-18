@@ -165,6 +165,10 @@ export default function LoginForm() {
           <p style={{ fontSize: 13, color: 'var(--ink-muted)', marginTop: 6, letterSpacing: '0.02em' }}>
             Sign in to continue
           </p>
+          <p style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 12, lineHeight: 1.5 }}>
+            14501 Warbler Ln, Haslet, TX 76052<br />
+            (347) 348-7538
+          </p>
         </div>
 
         {/* Card */}
