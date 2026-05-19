@@ -347,7 +347,8 @@ export default function InvoiceView({ order: init, role }: Props) {
           <div style={{ opacity: isVoid ? 0.5 : 1 }}>
             {editing ? (
               <div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border)' }}>
                       <th style={th}>Item</th>
@@ -392,6 +393,7 @@ export default function InvoiceView({ order: init, role }: Props) {
                     ))}
                   </tbody>
                 </table>
+                </div>
 
                 <button type="button" onClick={() => setDraftItems(p => [...p, { ...BLANK }])}
                   style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 10, border: '1.5px dashed var(--border)', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'inherit', transition: 'all 120ms' }}
@@ -422,8 +424,8 @@ export default function InvoiceView({ order: init, role }: Props) {
                 </div>
               </div>
             ) : (
-              <div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="table-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border)' }}>
                       <th style={th}>Item</th>

@@ -140,7 +140,7 @@ export default function StaffClient({ initial, currentUserId, managedRole }: Pro
     : 'Staff can create/edit customers, create orders, and void orders. They cannot delete customers or adjust points.';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24, alignItems: 'start' }}>
+    <div className="split-grid split-grid--wide">
       {/* New PIN card */}
       <div className="card">
         <h2 style={{ fontFamily: 'var(--font-dm-serif), serif', fontSize: 18, margin: 0, marginBottom: 16 }}>

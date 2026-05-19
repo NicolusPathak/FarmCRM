@@ -182,10 +182,9 @@ export default function ActivityClient({ initial, total, pageSize }: Props) {
               const color = ACTION_COLOR[e.action] ?? 'var(--text-muted)';
               const ip = actorIp(e.changes);
               return (
-                <div key={e.id} style={{
+                <div key={e.id} className="activity-row" style={{
                   padding: '14px 20px',
                   borderTop: i === 0 ? 'none' : '1px solid var(--border)',
-                  display: 'grid', gridTemplateColumns: '180px 140px 1fr 200px', gap: 16, alignItems: 'start',
                 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{formatTs(e.created_at)}</div>
                   <div>

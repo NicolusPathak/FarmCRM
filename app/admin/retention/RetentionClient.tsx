@@ -163,10 +163,7 @@ function Row({ entry, showBucket, isLast, contacting, onMark }: {
       : `${entry.days_since_last} day${entry.days_since_last === 1 ? '' : 's'} ago`;
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 200px 200px auto',
-      gap: 16, alignItems: 'center',
+    <div className="retention-row" style={{
       padding: '14px 18px',
       borderBottom: isLast ? 'none' : '1px solid var(--border-soft)',
     }}>

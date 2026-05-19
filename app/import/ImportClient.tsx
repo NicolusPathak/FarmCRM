@@ -312,7 +312,7 @@ export default function ImportClient() {
         </div>
 
         {/* Results */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+        <div className="dual-grid" style={{ marginBottom: 24 }}>
           <div style={{ textAlign: 'center', padding: '20px', background: '#e6f9f0', borderRadius: 12 }}>
             <div style={{ fontSize: 36, fontWeight: 700, color: '#1a7a4a', fontFamily: "var(--font-dm-serif), serif", lineHeight: 1 }}>
               {(result?.inserted ?? 0).toLocaleString()}

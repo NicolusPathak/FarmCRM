@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,6 +13,7 @@ import {
   AlertTriangle,
   Settings,
   Download,
+  Menu,
 } from 'lucide-react';
 import { LoadingLink as Link, useLoadingRouter, useLoadingAction } from '@/components/ui/GlobalLoading';
 import type { SessionUser } from '@/types';
@@ -31,6 +33,23 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
   const pathname = usePathname();
   const router   = useLoadingRouter();
   const withLoading = useLoadingAction();
+
+  // Drawer state for mobile. The CSS does the work below 1024px:
+  // sidebar.is-open slides in, .mobile-backdrop.is-open dims the rest.
+  // On desktop the class is harmless — the sidebar is already in-view.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const closeDrawer = () => setMobileOpen(false);
+
+  // Lock body scroll while drawer is open so the page underneath doesn't
+  // scroll when the user swipes inside the drawer. Synchronizing the DOM
+  // with React state is the intended use of useEffect.
+  useEffect(() => {
+    if (mobileOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [mobileOpen]);
 
   const NAV: NavItem[] = [
     { href: '/dashboard',       label: 'Dashboard', Icon: LayoutDashboard },
@@ -60,7 +79,36 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
   const showImport = hasAdminAccess && !isOwner;
 
   return (
-    <aside className="sidebar no-print">
+    <>
+      {/* Mobile top bar — only renders below 1024px (CSS gates display).
+          Hamburger toggles the drawer; brand mark gives users a visual
+          anchor on small screens so they don't feel disoriented. */}
+      <div className="mobile-topbar no-print">
+        <button
+          type="button"
+          className="mobile-menu-trigger"
+          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((v) => !v)}
+        >
+          <Menu size={20} strokeWidth={1.8} />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <Image src="/logo.png" alt="" width={28} height={28} style={{ objectFit: 'contain' }} />
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Chaudhary Farm
+          </div>
+        </div>
+      </div>
+
+      {/* Backdrop — only shown when drawer is open. Tap to close. */}
+      <div
+        className={`mobile-backdrop no-print${mobileOpen ? ' is-open' : ''}`}
+        aria-hidden
+        onClick={closeDrawer}
+      />
+
+      <aside className={`sidebar no-print${mobileOpen ? ' is-open' : ''}`}>
       {/* Brand */}
       <div style={{ padding: '24px 20px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -76,12 +124,17 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
       </div>
 
       {/* Nav — scrolls when admin has too many items for the viewport,
-          so the user-card + Sign out stay pinned to the bottom. */}
-      <nav style={{
-        flex: 1, minHeight: 0, overflowY: 'auto',
-        padding: '4px 10px 16px',
-        display: 'flex', flexDirection: 'column', gap: 1,
-      }}>
+          so the user-card + Sign out stay pinned to the bottom.
+          onClick={closeDrawer} closes the mobile drawer when any link is
+          tapped; safe on desktop because the drawer is already not-open. */}
+      <nav
+        onClick={closeDrawer}
+        style={{
+          flex: 1, minHeight: 0, overflowY: 'auto',
+          padding: '4px 10px 16px',
+          display: 'flex', flexDirection: 'column', gap: 1,
+        }}
+      >
         {isOwner ? (
           // Owner sidebar: just the one page they're allowed to use.
           <>
@@ -146,6 +199,7 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
         </button>
       </div>
     </aside>
+    </>
   );
 }
 

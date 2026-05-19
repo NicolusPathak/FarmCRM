@@ -157,7 +157,7 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
         }
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 24 }}>
+      <div className="split-grid split-grid--narrow">
 
         {/* Left: profile */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -306,7 +306,7 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Quick stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <div className="tri-grid">
             {[
               { label: 'Orders',    value: activeOrders.length.toString(),                                                    Icon: ShoppingBag },
               { label: 'Spent',     value: formatCurrency(totalSpent),                                                        Icon: DollarSign },

@@ -86,12 +86,7 @@ export default function DashboardClient({ stats, role }: Props) {
       {/* Sales at a glance — admin-only (revenue is shop financial data).
           Responsive collapse-to-2x2 rule lives in the bottom <style jsx>. */}
       {isAdmin && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 12,
-          marginBottom: 28,
-        }} className="sales-glance">
+        <div className="quad-grid sales-glance" style={{ marginBottom: 28 }}>
           <Glance label="Today"      value={stats.today_revenue}      n={stats.today_order_count} />
           <Glance label="Yesterday"  value={stats.yesterday_revenue}  n={stats.yesterday_order_count} />
           <Glance label="This week"  value={stats.this_week_revenue}  n={stats.this_week_order_count} />
@@ -168,12 +163,7 @@ export default function DashboardClient({ stats, role }: Props) {
       </div>
 
       {/* Stats — Lifetime sales is admin-only. Staff see a 2-column grid. */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: isAdmin ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
-        gap: 14,
-        marginBottom: 28,
-      }}>
+      <div className={isAdmin ? 'tri-grid' : 'dual-grid'} style={{ marginBottom: 28 }}>
         <StatCard label="Customers" value={stats.totalCustomers.toLocaleString()} Icon={Users} />
         <StatCard label="Orders"    value={stats.totalOrders.toLocaleString()}    Icon={Receipt} />
         {isAdmin && (
@@ -182,7 +172,7 @@ export default function DashboardClient({ stats, role }: Props) {
       </div>
 
       {/* Recent activity */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="dual-grid">
 
         <Panel
           title="Recent customers"
@@ -226,9 +216,6 @@ export default function DashboardClient({ stats, role }: Props) {
       <style jsx>{`
         .spin { animation: spin 800ms linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 720px) {
-          :global(.sales-glance) { grid-template-columns: repeat(2, 1fr) !important; }
-        }
       `}</style>
     </div>
   );

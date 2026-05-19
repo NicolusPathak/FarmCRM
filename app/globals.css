@@ -198,6 +198,184 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 .main-area  { flex: 1; margin-left: 240px; min-height: 100vh; }
 .page-content { max-width: 1180px; margin: 0 auto; padding: 32px 40px 56px; }
 
+/* Mobile top bar — only visible below 768px when sidebar is a drawer.
+   Holds the hamburger and a compact brand mark so the user always has
+   nav within reach. Sized so a thumb-tap is easy. */
+.mobile-topbar {
+  display: none;
+  position: sticky; top: 0; z-index: 30;
+  height: 56px; padding: 0 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  align-items: center; gap: 12px;
+}
+.mobile-menu-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: var(--r-md);
+  background: transparent; border: 1px solid var(--border);
+  color: var(--ink); cursor: pointer;
+}
+.mobile-menu-trigger:active { transform: scale(0.96); }
+.mobile-backdrop {
+  display: none;
+  position: fixed; inset: 0; z-index: 35;
+  background: rgba(20,17,15,0.45);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Responsive layout grids ──────────────────────────────────
+   These are the major two-column layouts used across the app
+   (new-order form, customer profile, staff PINs). Below 900px
+   they collapse to a single column so nothing horizontally
+   overflows. Replaces inline gridTemplateColumns values that
+   used to assume a desktop viewport. */
+.split-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.split-grid--narrow { grid-template-columns: 280px 1fr; }
+.split-grid--wide   { grid-template-columns: 360px 1fr; }
+
+/* "Quad" 4-up grids (dashboard sales-glance + customer profile stats). */
+.quad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.tri-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Activity log row (timestamp · action · summary · actor+IP).
+   Desktop: 4 fixed columns. Tablet/mobile: stacks vertically so each
+   cell can take the full row width without truncation. */
+.activity-row {
+  display: grid;
+  grid-template-columns: 180px 140px 1fr 200px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Retention list row (customer · last-seen · cadence · actions).
+   Desktop: 1fr 200 200 auto. Mobile: stacked. */
+.retention-row {
+  display: grid;
+  grid-template-columns: 1fr 200px 200px auto;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Wraps a `.data-table` so it scrolls horizontally instead of forcing
+   the whole page to scroll. Cards still get their full radius/shadow. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Breakpoints ─────────────────────────────────────────────
+   Mobile-first: base styles target the smallest layout. Larger
+   viewports get progressive enhancement via min-width queries.
+   We use one breakpoint at 768px (tablet) and one at 1024px
+   (laptop). Keeping it simple — three sizes covers the realistic
+   shop devices: counter iPad (portrait ~768, landscape ~1024),
+   owner's phone (375), and home laptop (1280+). */
+
+/* Mobile — up to 767px */
+@media (max-width: 767px) {
+  /* Sidebar becomes an off-canvas drawer */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 220ms cubic-bezier(.4,0,.2,1);
+    width: 84vw; max-width: 320px;
+  }
+  .sidebar.is-open { transform: translateX(0); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+  .mobile-backdrop.is-open { display: block; }
+  .mobile-topbar { display: flex; }
+
+  /* Main area no longer reserves left space for sidebar */
+  .main-area { margin-left: 0; }
+  .page-content { padding: 16px 14px 40px; }
+
+  /* Headlines shrink so they don't dominate small screens */
+  h1.font-display, .font-display { font-size: 22px !important; }
+
+  /* All major grids collapse to one column */
+  .split-grid, .split-grid--narrow, .split-grid--wide,
+  .quad-grid, .tri-grid, .dual-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Activity + retention rows: stack so long content can wrap.
+     Each cell becomes a separate "row" in the stack with the same
+     border treatment its parent provides. */
+  .activity-row, .retention-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+
+  /* Cards: less padding so content gets the room */
+  .card { padding: 16px; }
+  .card-sm { padding: 12px; }
+
+  /* Touch-friendly inputs/buttons. 16px font-size prevents iOS zoom
+     on focus. 44px height meets Apple's tap-target guideline. */
+  .input-field { font-size: 16px; padding: 12px 14px; min-height: 44px; }
+  .btn-primary, .btn-secondary, .btn-danger { min-height: 44px; padding: 10px 18px; }
+  .btn-ghost { min-height: 40px; }
+
+  /* Data table content can run wide; let the cell padding shrink and
+     enable horizontal scroll via .table-scroll wrappers added by pages. */
+  .data-table thead th { padding: 10px 14px; font-size: 10.5px; }
+  .data-table td       { padding: 12px 14px; font-size: 13.5px; }
+
+  /* Cards that contain a wide data table need to scroll horizontally
+     instead of forcing the whole page to scroll. :has() is supported in
+     all modern browsers (Safari 15.4+, Chrome 105+); for the shop's
+     iPad/iPhone target devices that's everything. */
+  .card:has(> .data-table),
+  .card:has(> table.data-table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Tablet — 768px and up. Most grids back to multi-column.
+   Sidebar still drawer-mode below 1024px so the counter iPad gets
+   the floor-staff experience (more screen real estate for content). */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 220ms cubic-bezier(.4,0,.2,1);
+    width: 280px;
+  }
+  .sidebar.is-open { transform: translateX(0); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
+  .mobile-backdrop.is-open { display: block; }
+  .mobile-topbar { display: flex; }
+  .main-area { margin-left: 0; }
+  .page-content { padding: 24px 24px 48px; max-width: 100%; }
+
+  /* Mid-density grids on tablet */
+  .quad-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Activity row on tablet: 2-column compact layout so timestamp/action
+     stay aligned and actor floats right. */
+  .activity-row { grid-template-columns: 200px 1fr; }
+  .retention-row { grid-template-columns: 1fr auto; }
+}
+
+/* Desktop — 1024px+. Sidebar always-visible, no mobile chrome. */
+@media (min-width: 1024px) {
+  .mobile-topbar { display: none; }
+  .mobile-backdrop { display: none !important; }
+}
+
 /* ─── Table ─────────────────────────────────────────────────── */
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .data-table thead th {

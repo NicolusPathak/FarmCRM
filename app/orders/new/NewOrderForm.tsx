@@ -155,7 +155,7 @@ export default function NewOrderForm({ preselectedCustomer }: Props) {
 
   return (
     <form onSubmit={submit}>
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20 }}>
+      <div className="split-grid">
         {/* Left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="card">
