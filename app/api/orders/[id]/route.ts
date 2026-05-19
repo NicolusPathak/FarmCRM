@@ -56,6 +56,61 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .maybeSingle();
   if (fetchErr || !existing) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
+  // ── SET CREATOR action ───────────────────────────────────────
+  // Admin/owner-only label edit. Allowed on voided orders too — historical
+  // labeling shouldn't depend on order status. Updates only created_by_name
+  // (the snapshot), never the created_by FK — admins are tagging legacy
+  // rows or correcting a name, not impersonating a different staff user.
+  if (body.action === 'set_creator') {
+    if (actor.role !== 'admin' && actor.role !== 'owner') {
+      return NextResponse.json({ error: 'Only admin or owner can edit the order creator.' }, { status: 403 });
+    }
+    const raw = typeof body.creator_name === 'string' ? body.creator_name.trim() : '';
+    if (!raw)              clientError('Creator name cannot be empty.');
+    if (raw.length > 80)   clientError('Creator name is too long (max 80).');
+
+    const oldName = ((existing as any).created_by_name ?? null) as string | null;
+    if (oldName === raw) {
+      const { data: unchanged } = await sb
+        .from('orders')
+        .select('*, order_items(*), customer:customers(*)')
+        .eq('id', id)
+        .single();
+      return NextResponse.json(unchanged);
+    }
+
+    const { error: updErr } = await sb
+      .from('orders')
+      .update({ created_by_name: raw })
+      .eq('id', id);
+    if (updErr) {
+      console.error('[api:PATCH order set_creator]', updErr);
+      return NextResponse.json({ error: 'Could not update creator.' }, { status: 500 });
+    }
+
+    try {
+      await logAuditOrFail({
+        actor,
+        action: 'updated',
+        entity_type: 'order',
+        entity_id: id,
+        entity_label: `${(existing as any).order_number} — ${(existing as any).customer?.full_name ?? ''}`.trim(),
+        changes: { created_by_name: { from: oldName, to: raw } },
+      });
+    } catch (auditErr) {
+      console.error('[api:PATCH order set_creator] audit failed — rolling back', auditErr);
+      await sb.from('orders').update({ created_by_name: oldName }).eq('id', id);
+      return NextResponse.json({ error: 'Could not record creator change. No change made.' }, { status: 500 });
+    }
+
+    const { data: updated } = await sb
+      .from('orders')
+      .select('*, order_items(*), customer:customers(*)')
+      .eq('id', id)
+      .single();
+    return NextResponse.json(updated);
+  }
+
   if ((existing as any).status === 'void') {
     return NextResponse.json({ error: 'This order has already been voided' }, { status: 409 });
   }

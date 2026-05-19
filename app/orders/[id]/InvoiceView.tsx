@@ -4,7 +4,7 @@ import { LoadingLink as Link, useLoadingAction } from '@/components/ui/GlobalLoa
 import Image from 'next/image';
 import {
   Search, Plus, Pencil, Printer, X, Check, Ban, AlertOctagon, Lock,
-  CheckCircle2, RefreshCw, ArrowLeftRight, Sparkles, Loader2,
+  CheckCircle2, RefreshCw, ArrowLeftRight, Sparkles, Loader2, User,
 } from 'lucide-react';
 import type { Order, Customer, OrderLogEntry, PaymentMethod, SessionRole } from '@/types';
 import { isAdminOrOwner } from '@/types';
@@ -115,6 +115,11 @@ export default function InvoiceView({ order: init, role }: Props) {
   const [draftCustomer,  setDraftCustomer] = useState<Customer | null>(null);
   const [draftPayment,   setDraftPayment]  = useState<PaymentMethod>('cash');
 
+  // Inline editor for the "Created by" label (admin / owner only).
+  const [editingCreator, setEditingCreator] = useState(false);
+  const [creatorDraft,   setCreatorDraft]   = useState('');
+  const [creatorSaving,  setCreatorSaving]  = useState(false);
+
   const customer  = (order as any).customer as Customer | undefined;
   const items     = order.order_items ?? [];
   const isVoid    = order.status === 'void';
@@ -174,6 +179,28 @@ export default function InvoiceView({ order: init, role }: Props) {
       } catch (err: any) {
         toast.error(err.message);
       } finally { setSaving(false); }
+    });
+  }
+
+  async function saveCreator() {
+    const name = creatorDraft.trim();
+    if (!name)            { toast.error('Creator name cannot be empty.'); return; }
+    if (name.length > 80) { toast.error('Creator name is too long (max 80).'); return; }
+    setCreatorSaving(true);
+    await withLoading(async () => {
+      try {
+        const res = await fetch(`/api/orders/${order.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_creator', creator_name: name }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? 'Save failed');
+        setOrder(await res.json());
+        setEditingCreator(false);
+        toast.success('Creator updated');
+      } catch (err: any) {
+        toast.error(err.message);
+      } finally { setCreatorSaving(false); }
     });
   }
 
@@ -317,6 +344,55 @@ export default function InvoiceView({ order: init, role }: Props) {
               </div>
             ) : (
               <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>—</div>
+            )}
+          </div>
+
+          {/* Created by — visible to everyone (so staff also see attribution),
+              but only admin / owner can edit. The pencil is hidden on print so
+              receipts stay clean. */}
+          <div className="no-print" style={{ opacity: isVoid ? 0.6 : 1 }}>
+            <div className="label" style={{ marginBottom: 8 }}>Created by</div>
+            {editingCreator ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="input-field"
+                  autoFocus
+                  maxLength={80}
+                  placeholder="Staff name"
+                  value={creatorDraft}
+                  onChange={(e) => setCreatorDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !creatorSaving) { e.preventDefault(); saveCreator(); }
+                    if (e.key === 'Escape') { e.preventDefault(); setEditingCreator(false); }
+                  }}
+                  style={{ maxWidth: 260 }}
+                />
+                <button onClick={saveCreator} disabled={creatorSaving} className="btn-primary" style={{ padding: '7px 12px', fontSize: 12.5 }}>
+                  {creatorSaving ? <Loader2 size={12} className="spin" /> : <Check size={13} />} Save
+                </button>
+                <button onClick={() => setEditingCreator(false)} disabled={creatorSaving} className="btn-secondary" style={{ padding: '7px 12px', fontSize: 12.5 }}>
+                  <X size={13} /> Cancel
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border-soft)' }}>
+                  <User size={14} style={{ color: 'var(--ink-muted)' }} />
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>
+                    {order.created_by_name ?? <span style={{ color: 'var(--ink-muted)', fontWeight: 400, fontStyle: 'italic' }}>Not recorded</span>}
+                  </span>
+                </div>
+                {isAdmin && (
+                  <button
+                    onClick={() => { setCreatorDraft(order.created_by_name ?? ''); setEditingCreator(true); }}
+                    className="btn-secondary"
+                    style={{ padding: '7px 10px', fontSize: 12.5 }}
+                    aria-label={order.created_by_name ? 'Edit creator' : 'Add creator'}
+                  >
+                    <Pencil size={13} /> {order.created_by_name ? 'Edit' : 'Add'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

@@ -64,6 +64,14 @@ DO $$ BEGIN
   ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK (status IN ('active','void'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Who created the order. `created_by` is the FK for new orders; nullable
+-- because (a) old rows predate this column and (b) staff_users can be
+-- deleted (SET NULL preserves the order). `created_by_name` is the
+-- denormalized snapshot so the name survives staff deletion and admins
+-- can manually fill it in for historical orders that have no FK.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by      uuid REFERENCES staff_users(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by_name text;
+
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders (customer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created     ON orders (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status      ON orders (status);

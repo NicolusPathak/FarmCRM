@@ -49,6 +49,12 @@ export interface Order {
   payment_method: PaymentMethod;
   change_log: OrderLogEntry[];
   created_at: string;
+  // Who created the order. created_by is the FK to staff_users (nullable on
+  // old orders and when the original staff is later deleted). created_by_name
+  // is the snapshot of the staff name at create time — admins can also edit
+  // it directly on legacy orders that have no FK.
+  created_by: string | null;
+  created_by_name: string | null;
   // Joined fields (optional — present when queried with select)
   customer?: Pick<Customer, 'id' | 'full_name' | 'customer_number'>;
   order_items?: OrderItem[];

@@ -331,6 +331,8 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
     notes,
     status:              'active',
     payment_method,
+    created_by:          actor.id,
+    created_by_name:     actor.name,
     change_log:          [{ timestamp: nowIso, type: 'created', summary: `Order created by ${actor.name} with ${form.items.length} item${form.items.length !== 1 ? 's' : ''}${pointsRedeemed > 0 ? ` (${pointsRedeemed} pts redeemed for $${redemptionDiscount.toFixed(2)} off)` : ''}` }],
   };
 
