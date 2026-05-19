@@ -64,12 +64,9 @@ DO $$ BEGIN
   ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK (status IN ('active','void'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Who created the order. `created_by` is the FK for new orders; nullable
--- because (a) old rows predate this column and (b) staff_users can be
--- deleted (SET NULL preserves the order). `created_by_name` is the
--- denormalized snapshot so the name survives staff deletion and admins
--- can manually fill it in for historical orders that have no FK.
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by      uuid REFERENCES staff_users(id) ON DELETE SET NULL;
+-- `created_by_name` is the denormalized snapshot — added here so it
+-- exists before staff_users is created. The matching FK column
+-- (`created_by`) is added later in STEP 5, after staff_users exists.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by_name text;
 
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders (customer_id);
@@ -158,7 +155,11 @@ CREATE TRIGGER trg_sync_order_totals
 CREATE TABLE IF NOT EXISTS staff_users (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   name        text        NOT NULL,
-  pin_hash    text        NOT NULL UNIQUE,
+  -- pin_hash is NOT declared UNIQUE inline. We use a partial unique index
+  -- below so archived rows can keep their old hash (PIN-reset flow leaves
+  -- the archived row with the old hash intact; the new active row may
+  -- legitimately reuse a hash that some archived row also has).
+  pin_hash    text        NOT NULL,
   role        text        NOT NULL CHECK (role IN ('admin','staff')),
   active      boolean     NOT NULL DEFAULT true,
   created_at  timestamptz NOT NULL DEFAULT now(),
@@ -167,6 +168,28 @@ CREATE TABLE IF NOT EXISTS staff_users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_staff_users_active ON staff_users (active) WHERE archived_at IS NULL;
+
+-- Older databases may have a full-table unique constraint/index on pin_hash
+-- from prior schema versions. Drop both before creating the partial index —
+-- a full unique index would (a) block the partial-index creation if
+-- duplicates exist among archived rows, and (b) wrongly forbid hash reuse
+-- on PIN reset. IF EXISTS keeps this a no-op on fresh installs.
+ALTER TABLE staff_users DROP CONSTRAINT IF EXISTS staff_users_pin_hash_key;
+DROP INDEX IF EXISTS staff_users_pin_hash_key;
+
+-- Partial unique index: pin_hash must be unique only across ACTIVE staff.
+-- This matches the app's collision check in /api/staff (it filters
+-- archived_at IS NULL when looking for existing PINs). It also lets the
+-- seed INSERT below target the index via ON CONFLICT (pin_hash) WHERE
+-- archived_at IS NULL.
+CREATE UNIQUE INDEX IF NOT EXISTS staff_users_pin_hash_active_key
+  ON staff_users (pin_hash) WHERE archived_at IS NULL;
+
+-- Order creator FK. Lives here (not in STEP 2) because it references
+-- staff_users(id), which is created above. ON DELETE SET NULL keeps the
+-- order intact when a staff_users row is removed — created_by_name still
+-- holds the snapshot name.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES staff_users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -251,26 +274,25 @@ ALTER TABLE staff_users
   ADD CONSTRAINT staff_users_created_by_fkey
   FOREIGN KEY (created_by) REFERENCES staff_users(id) ON DELETE SET NULL;
 
--- Seed the Owner admin idempotently. Two cases:
---   (1) The 9851 hash already exists → ON CONFLICT updates role/active.
---   (2) An older 'Owner' admin row exists with a different hash → swap its hash.
+-- Seed the Owner admin — name-based identity, not hash-based.
+-- Rationale: a PIN can be reset through the app, but the staff *name* is
+-- stable. Keying on pin_hash would mean every schema re-run resets the
+-- Owner's PIN back to 9851 (and clobbers any reset done in production).
+-- Instead: only insert when no active Owner exists. Re-runs are a no-op.
+-- The second NOT EXISTS guards against the (unlikely) case where some
+-- *other* active staff already holds the 9851 hash — without it, the
+-- partial unique index on pin_hash would 23505 the insert.
 INSERT INTO staff_users (name, pin_hash, role, active)
-VALUES ('Owner', '2zCUtBsuvKV8BmjOWxdtB7EANN-Mde19MiAeaKzOfbM', 'admin', true)
-ON CONFLICT (pin_hash) DO UPDATE
-  SET role = 'admin', active = true, archived_at = NULL;
-
-UPDATE staff_users
-SET pin_hash    = '2zCUtBsuvKV8BmjOWxdtB7EANN-Mde19MiAeaKzOfbM',
-    role        = 'admin',
-    active      = true,
-    archived_at = NULL
-WHERE name = 'Owner' AND role = 'admin'
-  AND pin_hash != '2zCUtBsuvKV8BmjOWxdtB7EANN-Mde19MiAeaKzOfbM'
-  AND NOT EXISTS (
-    SELECT 1 FROM staff_users s2
-    WHERE s2.pin_hash = '2zCUtBsuvKV8BmjOWxdtB7EANN-Mde19MiAeaKzOfbM'
-      AND s2.id <> staff_users.id
-  );
+SELECT 'Owner', '2zCUtBsuvKV8BmjOWxdtB7EANN-Mde19MiAeaKzOfbM', 'admin', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM staff_users
+  WHERE name = 'Owner' AND role = 'admin' AND archived_at IS NULL
+)
+AND NOT EXISTS (
+  SELECT 1 FROM staff_users
+  WHERE pin_hash = '2zCUtBsuvKV8BmjOWxdtB7EANN-Mde19MiAeaKzOfbM'
+    AND archived_at IS NULL
+);
 
 
 -- ╔══════════════════════════════════════════════════════════╗
