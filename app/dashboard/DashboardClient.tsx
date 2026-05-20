@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LoadingLink as Link, useLoadingRouter } from '@/components/ui/GlobalLoading';
 import Image from 'next/image';
-import { Search, X, Plus, UserPlus, Receipt, Users, ArrowRight, Loader2 } from 'lucide-react';
+import { Search, X, Plus, UserPlus, Receipt, Users, ArrowRight, Loader2, BarChart3 } from 'lucide-react';
 import type { DashboardStats } from '@/lib/db';
 import type { Customer, Order, SessionRole } from '@/types';
 import { isAdminOrOwner } from '@/types';
@@ -86,12 +86,28 @@ export default function DashboardClient({ stats, role }: Props) {
       {/* Sales at a glance — admin-only (revenue is shop financial data).
           Responsive collapse-to-2x2 rule lives in the bottom <style jsx>. */}
       {isAdmin && (
-        <div className="quad-grid sales-glance" style={{ marginBottom: 28 }}>
-          <Glance label="Today"      value={stats.today_revenue}      n={stats.today_order_count} />
-          <Glance label="Yesterday"  value={stats.yesterday_revenue}  n={stats.yesterday_order_count} />
-          <Glance label="This week"  value={stats.this_week_revenue}  n={stats.this_week_order_count} />
-          <Glance label="This month" value={stats.this_month_revenue} n={stats.this_month_order_count} />
-        </div>
+        <>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 10, flexWrap: 'wrap', marginBottom: 10,
+          }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-muted)' }}>
+              Sales at a glance
+            </span>
+            <Link href="/admin/reports" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', textDecoration: 'none',
+            }}>
+              <BarChart3 size={13} /> End-of-day breakdown <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="quad-grid sales-glance" style={{ marginBottom: 28 }}>
+            <Glance label="Today"      value={stats.today_revenue}      n={stats.today_order_count} />
+            <Glance label="Yesterday"  value={stats.yesterday_revenue}  n={stats.yesterday_order_count} />
+            <Glance label="This week"  value={stats.this_week_revenue}  n={stats.this_week_order_count} />
+            <Glance label="This month" value={stats.this_month_revenue} n={stats.this_month_order_count} />
+          </div>
+        </>
       )}
 
       {/* Search */}

@@ -14,6 +14,8 @@ import {
   Settings,
   Download,
   Menu,
+  BarChart3,
+  Tag,
 } from 'lucide-react';
 import { LoadingLink as Link, useLoadingRouter, useLoadingAction } from '@/components/ui/GlobalLoading';
 import type { SessionUser } from '@/types';
@@ -55,11 +57,13 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
     { href: '/dashboard',       label: 'Dashboard', Icon: LayoutDashboard },
     { href: '/customers',       label: 'Customers', Icon: Users },
     { href: '/orders',          label: 'Orders',    Icon: Receipt },
-    { href: '/admin/retention', label: 'Retention', Icon: AlertTriangle, adminOnly: true, badge: retentionCount },
-    { href: '/admin/staff',     label: user.role === 'owner' ? 'Admin PINs' : 'Staff PINs', Icon: KeyRound, adminOnly: true },
-    { href: '/admin/activity',  label: 'Activity',  Icon: Activity,      adminOnly: true },
-    { href: '/admin/export',    label: 'Export',    Icon: Download,      adminOnly: true },
-    { href: '/admin/settings',  label: 'Settings',  Icon: Settings,      adminOnly: true },
+    { href: '/admin/reports',    label: 'End of day', Icon: BarChart3,     adminOnly: true },
+    { href: '/admin/retention',  label: 'Retention',  Icon: AlertTriangle, adminOnly: true, badge: retentionCount },
+    { href: '/admin/staff',      label: user.role === 'owner' ? 'Admin PINs' : 'Staff PINs', Icon: KeyRound, adminOnly: true },
+    { href: '/admin/categories', label: 'Categories', Icon: Tag,           adminOnly: true },
+    { href: '/admin/activity',   label: 'Activity',   Icon: Activity,      adminOnly: true },
+    { href: '/admin/export',     label: 'Export',     Icon: Download,      adminOnly: true },
+    { href: '/admin/settings',   label: 'Settings',   Icon: Settings,      adminOnly: true },
   ];
 
   const signOut = () => withLoading(async () => {

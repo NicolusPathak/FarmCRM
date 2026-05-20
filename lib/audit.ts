@@ -13,7 +13,7 @@ import { createSupabaseAdminClient } from './supabase-server';
 import { clientIpFromHeaders } from './request-ip';
 import type { SessionUser, AuditChanges } from '@/types';
 
-export type EntityType = 'customer' | 'order' | 'staff' | 'export' | 'settings';
+export type EntityType = 'customer' | 'order' | 'staff' | 'export' | 'settings' | 'category';
 export type AuditAction =
   | 'created'
   | 'updated'

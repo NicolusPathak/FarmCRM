@@ -128,9 +128,95 @@ export interface AuditLogEntry {
   actor_name: string;
   actor_role: StaffRole;
   action: string;
-  entity_type: 'customer' | 'order' | 'staff' | 'export' | 'settings';
+  entity_type: 'customer' | 'order' | 'staff' | 'export' | 'settings' | 'category';
   entity_id: string | null;
   entity_label: string | null;
   changes: AuditChanges;
   created_at: string;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Categories + Reports (migration 09)
+// ─────────────────────────────────────────────────────────────
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CategoryAlias {
+  id: string;
+  category_id: string;
+  alias: string;
+  alias_normalized: string;
+  created_at: string;
+}
+
+export interface CategoryWithAliases extends ProductCategory {
+  aliases: CategoryAlias[];
+}
+
+// One row in the per-item ranked list on the report.
+export interface ReportItemRow {
+  display_name: string;       // most-frequent original spelling in the bucket
+  normalized_name: string;    // post-normalize, post-fuzzy-merge key
+  category_id: string | null; // null = uncategorized
+  category_name: string | null;
+  category_color: string | null;
+  revenue: number;
+  quantity: number;
+  order_count: number;        // distinct orders containing this item
+  // If we merged near-spellings into this row, list the originals that got
+  // merged in. Powers the "possibly the same item?" panel.
+  merged_from: string[];
+}
+
+export interface ReportCategoryRow {
+  id: string | null;          // null = "Uncategorized"
+  name: string;
+  color: string;
+  revenue: number;
+  quantity: number;
+  item_count: number;
+}
+
+export interface ReportData {
+  from: string;                      // YYYY-MM-DD (shop-TZ), inclusive
+  to:   string;                      // YYYY-MM-DD (shop-TZ), inclusive
+  is_single_day: boolean;            // true iff from === to
+  // Top-line KPIs (focal window)
+  total_revenue: number;
+  total_orders: number;
+  total_items: number;
+  // Comparison vs the equivalent previous window (yesterday for a single
+  // day, prior N days for a range). `prev_label` is a UI hint, e.g.
+  // "vs yesterday" or "vs prior 7 days".
+  prev_revenue: number;
+  prev_orders: number;
+  prev_label: string;
+  // Breakdowns — sorted by sort_order (categories) and revenue (items).
+  categories: ReportCategoryRow[];
+  items: ReportItemRow[];
+  // Daily totals across [from..to] — always populated. Drives the bar
+  // chart in range mode; in single-day mode it's a one-bar series.
+  daily_totals: Array<{ date: string; revenue: number; orders: number }>;
+  // 7-day sparkline trend per top-N item — only filled when
+  // is_single_day. Empty arrays in range mode.
+  trend_dates: string[];
+  trend_by_item: Array<{
+    normalized_name: string;
+    display_name: string;
+    category_color: string | null;
+    daily_revenue: number[];
+  }>;
+  // Same-day spelling merges and uncategorized count are useful to
+  // surface in the UI even for ranges.
+  merges: Array<{ kept: string; absorbed: string }>;
+  uncategorized_count: number;
+}
+
