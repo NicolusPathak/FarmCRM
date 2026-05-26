@@ -57,6 +57,37 @@
   --r-lg: 16px;
   --r-xl: 22px;
 
+  /* ─── Type scale ────────────────────────────────────────────
+     One source of truth for every font-size in the app. Sizes
+     are in rem so a future zoom or accessibility setting scales
+     the whole UI together. The body root remains 16px so 1rem =
+     16px and these values stay legible per spec.
+
+     - --text-xs   12 / micro labels, badge text
+     - --text-sm   13 / cart row meta, helper text
+     - --text-base 16 / body default — never go below this
+     - --text-md   17 / emphasized body
+     - --text-lg   18 / small headings, section titles
+     - --text-xl   20 / card headers
+     - --text-2xl  24 / KPI values, modal titles
+     - --text-3xl  30 / page headlines on mobile
+     - --text-4xl  36 / page headlines on desktop / totals
+     ─────────────────────────────────────────────────────────── */
+  --text-xs:    0.75rem;     /* 12px */
+  --text-sm:    0.8125rem;   /* 13px */
+  --text-base:  1rem;        /* 16px */
+  --text-md:    1.0625rem;   /* 17px */
+  --text-lg:    1.125rem;    /* 18px */
+  --text-xl:    1.25rem;     /* 20px */
+  --text-2xl:   1.5rem;      /* 24px */
+  --text-3xl:   1.875rem;    /* 30px */
+  --text-4xl:   2.25rem;     /* 36px */
+
+  /* Line heights */
+  --leading-tight:   1.15;   /* headings */
+  --leading-snug:    1.35;
+  --leading-normal:  1.5;    /* body */
+
   /* Back-compat aliases — old code paths still reference these tokens */
   --cream:      var(--bg);
   --warm-gray:  var(--surface-2);
@@ -65,9 +96,23 @@
   --red:        var(--accent);
   --red-dark:   var(--accent-hover);
   --red-light:  var(--surface-2);
+
+  /* Sidebar geometry — referenced by .sidebar and .main-area so the
+     desktop reserve-width stays in sync. */
+  --sidebar-w: 240px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  /* Prevent any rogue element from pushing the page sideways on a phone.
+     `overflow-x: clip` doesn't create a scroll context so sticky/fixed
+     positioning still works. Items that legitimately need horizontal
+     scroll wrap themselves in .table-scroll. */
+  overflow-x: clip;
+  /* iOS Safari otherwise enlarges text when rotated to landscape. */
+  -webkit-text-size-adjust: 100%;
+}
 
 html {
   font-family: var(--font-dm-sans), system-ui, sans-serif;
@@ -75,6 +120,17 @@ html {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'cv11', 'ss01';
+  /* Lock the root to 16px so 1rem stays meaningful even if a browser
+     overrides the default (some Android browsers default to 18-20px,
+     which would scale everything up unpredictably). */
+  font-size: 16px;
+}
+
+body {
+  /* Mobile-first body baseline. Anywhere a component doesn't set its
+     own size, you get readable 16px text. */
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
 }
 
 ::selection { background: var(--ink); color: var(--bg); }
@@ -87,13 +143,30 @@ html {
 /* ─── Typography helpers ─────────────────────────────────────── */
 .font-display { font-family: var(--font-dm-serif), serif; letter-spacing: -0.01em; }
 
-h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
+h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: var(--leading-tight); }
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-lg); }
+
+/* Type-scale utilities — use these in components instead of inline px. */
+.text-xs    { font-size: var(--text-xs); }
+.text-sm    { font-size: var(--text-sm); }
+.text-base  { font-size: var(--text-base); }
+.text-md    { font-size: var(--text-md); }
+.text-lg    { font-size: var(--text-lg); }
+.text-xl    { font-size: var(--text-xl); }
+.text-2xl   { font-size: var(--text-2xl); }
+.text-3xl   { font-size: var(--text-3xl); }
+.text-4xl   { font-size: var(--text-4xl); }
 
 /* ─── Buttons ────────────────────────────────────────────────── */
+/* Sized mobile-first: 44px tap target + 16px-friendly font. Desktop
+   tightens via the @media (min-width: 1024px) block at the bottom. */
 .btn-primary, .btn-secondary, .btn-ghost, .btn-danger {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 18px; border-radius: var(--r-md);
-  font-weight: 600; font-size: 13.5px; line-height: 1;
+  padding: 12px 20px; border-radius: var(--r-md);
+  font-weight: 600; font-size: var(--text-sm); line-height: 1;
+  min-height: 44px;
   border: 1px solid transparent;
   cursor: pointer; text-decoration: none;
   font-family: inherit;
@@ -116,8 +189,8 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 .btn-secondary:hover { background: var(--surface-2); border-color: var(--ink-faint); }
 
 .btn-ghost {
-  padding: 8px 12px;
-  font-weight: 500; font-size: 13px;
+  padding: 10px 12px; min-height: 40px;
+  font-weight: 500; font-size: var(--text-sm);
   color: var(--ink-muted); background: transparent;
 }
 .btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
@@ -132,30 +205,33 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 22px;
+  padding: 16px;          /* mobile-first; desktop bumps to 22px */
   box-shadow: var(--shadow-sm);
 }
 .card-sm {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 16px;
+  padding: 12px;
 }
 
 /* ─── Inputs ─────────────────────────────────────────────────── */
+/* Mobile-first: 16px font (prevents iOS/Android auto-zoom on focus),
+   44px tap height. */
 .input-field {
   display: block;
   width: 100%;
-  padding: 11px 14px;
+  padding: 12px 14px;
   border-radius: var(--r-md);
-  font-size: 14px;
+  font-size: var(--text-base);
+  min-height: 44px;
   font-family: inherit;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--ink);
   outline: none;
   transition: border-color 140ms, background 140ms, box-shadow 140ms;
-  line-height: 1.4;
+  line-height: var(--leading-snug);
 }
 .input-field:focus {
   border-color: var(--ink);
@@ -167,7 +243,7 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 
 .label {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -179,7 +255,7 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 9px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; line-height: 1.4;
+  font-size: var(--text-xs); font-weight: 600; line-height: 1.4;
   border: 1px solid transparent;
 }
 .badge-neutral { background: var(--surface-2); color: var(--ink-2); border-color: var(--border); }
@@ -192,195 +268,165 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 .badge-green { background: var(--success-bg); color: var(--success); }
 .badge-gray  { background: var(--surface-2); color: var(--ink-muted); border-color: var(--border); }
 
-/* ─── Layout ─────────────────────────────────────────────────── */
-.app-shell  { display: flex; min-height: 100vh; background: var(--bg); }
-.sidebar    { position: fixed; left: 0; top: 0; width: 240px; height: 100%; display: flex; flex-direction: column; z-index: 40; background: var(--sidebar-bg); border-right: 1px solid #000; }
-.main-area  { flex: 1; margin-left: 240px; min-height: 100vh; }
-.page-content { max-width: 1180px; margin: 0 auto; padding: 32px 40px 56px; }
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT — MOBILE FIRST
+   ═══════════════════════════════════════════════════════════════
+   The base styles below assume the phone (≤ 767px). Sidebar is an
+   off-canvas drawer, main area takes the full width, grids stack to
+   a single column. Tablet (≥ 768) and desktop (≥ 1024) progressively
+   add multi-column grids and pin the sidebar in place.
 
-/* Mobile top bar — only visible below 768px when sidebar is a drawer.
-   Holds the hamburger and a compact brand mark so the user always has
-   nav within reach. Sized so a thumb-tap is easy. */
-.mobile-topbar {
+   The point of this ordering: if a media query fails to evaluate
+   (stale CSS, browser quirk, syntax mismatch), the page falls back
+   to the mobile layout — which is fine on every device — rather
+   than the desktop layout, which is broken on phones.
+   ─────────────────────────────────────────────────────────────── */
+
+/* Mobile-first single-column shell. We deliberately use `display: block`
+   (not flex) at base so the sidebar can be removed with `display: none`
+   below without leaving any phantom flex slot. The flex row is added
+   back at the desktop breakpoint when the sidebar reappears. */
+.app-shell {
+  display: block;
+  min-height: 100vh;       /* legacy fallback */
+  min-height: 100dvh;      /* iOS/Android dynamic viewport — accounts for browser chrome */
+  background: var(--bg);
+}
+
+/* Sidebar — NOT in the document on mobile. The hamburger in the
+   mobile top bar toggles `.is-open` on this element to bring it in
+   as an overlay drawer. Using `display: none` (instead of a transform
+   off-screen) is the bulletproof version: no Android browser, no
+   print stylesheet, no flex container can accidentally reserve column
+   space for a `display: none` element. */
+.sidebar {
   display: none;
-  position: sticky; top: 0; z-index: 30;
-  height: 56px; padding: 0 16px;
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  align-items: center; gap: 12px;
+}
+
+/* Drawer mode — only when .is-open is set on the sidebar. Becomes a
+   fixed overlay that paints OVER the page content, so it still does
+   not contribute to the main-area's width. The mobile-backdrop is a
+   sibling element that handles the dim-and-tap-to-close behavior. */
+.sidebar.is-open {
+  display: flex;
+  position: fixed;
+  left: 0; top: 0;
+  width: 84vw;
+  max-width: 320px;
+  height: 100dvh;
+  flex-direction: column;
+  z-index: 40;
+  background: var(--sidebar-bg);
+  border-right: 1px solid #000;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: drawer-in 220ms cubic-bezier(.4,0,.2,1);
+}
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/* Main content — full width on mobile, no sidebar reserve. The desktop
+   breakpoint below reserves space for the persistent sidebar. */
+.main-area {
+  margin-left: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.page-content {
+  max-width: 100%;
+  margin: 0 auto;
+  padding:
+    16px
+    calc(16px + env(safe-area-inset-right))
+    calc(24px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left));
+}
+
+/* Mobile top bar — visible by default (drawer mode). Hidden on
+   desktop in the min-width:1024 block. */
+.mobile-topbar {
+  display: flex;
+  position: sticky;
+  top: 0; z-index: 30;
+  height: 60px;
+  padding:
+    env(safe-area-inset-top)
+    calc(16px + env(safe-area-inset-right))
+    0
+    calc(12px + env(safe-area-inset-left));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 1px 0 rgba(22,19,17,0.04);
 }
 .mobile-menu-trigger {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border-radius: var(--r-md);
-  background: transparent; border: 1px solid var(--border);
-  color: var(--ink); cursor: pointer;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 120ms, transform 100ms;
 }
-.mobile-menu-trigger:active { transform: scale(0.96); }
+.mobile-menu-trigger:active { transform: scale(0.94); background: var(--surface-3); }
 .mobile-backdrop {
   display: none;
   position: fixed; inset: 0; z-index: 35;
-  background: rgba(20,17,15,0.45);
+  background: rgba(20,17,15,0.55);
   -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(2px);
 }
+.mobile-backdrop.is-open { display: block; }
 
-/* ─── Responsive layout grids ──────────────────────────────────
-   These are the major two-column layouts used across the app
-   (new-order form, customer profile, staff PINs). Below 900px
-   they collapse to a single column so nothing horizontally
-   overflows. Replaces inline gridTemplateColumns values that
-   used to assume a desktop viewport. */
-.split-grid {
+/* ─── Grids — single column on mobile by default ───────────── */
+.split-grid,
+.split-grid--narrow,
+.split-grid--wide {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 20px;
+  grid-template-columns: 1fr;
+  gap: 16px;
   align-items: start;
 }
-.split-grid--narrow { grid-template-columns: 280px 1fr; }
-.split-grid--wide   { grid-template-columns: 360px 1fr; }
-
-/* "Quad" 4-up grids (dashboard sales-glance + customer profile stats). */
-.quad-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-.tri-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
+.quad-grid,
+.tri-grid,
 .dual-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
-
-/* Activity log row (timestamp · action · summary · actor+IP).
-   Desktop: 4 fixed columns. Tablet/mobile: stacks vertically so each
-   cell can take the full row width without truncation. */
-.activity-row {
+.activity-row,
+.retention-row {
   display: grid;
-  grid-template-columns: 180px 140px 1fr 200px;
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 8px;
   align-items: start;
 }
 
-/* Retention list row (customer · last-seen · cadence · actions).
-   Desktop: 1fr 200 200 auto. Mobile: stacked. */
-.retention-row {
-  display: grid;
-  grid-template-columns: 1fr 200px 200px auto;
-  gap: 16px;
-  align-items: center;
-}
-
-/* Wraps a `.data-table` so it scrolls horizontally instead of forcing
-   the whole page to scroll. Cards still get their full radius/shadow. */
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* ─── Breakpoints ─────────────────────────────────────────────
-   Mobile-first: base styles target the smallest layout. Larger
-   viewports get progressive enhancement via min-width queries.
-   We use one breakpoint at 768px (tablet) and one at 1024px
-   (laptop). Keeping it simple — three sizes covers the realistic
-   shop devices: counter iPad (portrait ~768, landscape ~1024),
-   owner's phone (375), and home laptop (1280+). */
-
-/* Mobile — up to 767px */
-@media (max-width: 767px) {
-  /* Sidebar becomes an off-canvas drawer */
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 220ms cubic-bezier(.4,0,.2,1);
-    width: 84vw; max-width: 320px;
-  }
-  .sidebar.is-open { transform: translateX(0); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
-  .mobile-backdrop.is-open { display: block; }
-  .mobile-topbar { display: flex; }
-
-  /* Main area no longer reserves left space for sidebar */
-  .main-area { margin-left: 0; }
-  .page-content { padding: 16px 14px 40px; }
-
-  /* Headlines shrink so they don't dominate small screens */
-  h1.font-display, .font-display { font-size: 22px !important; }
-
-  /* All major grids collapse to one column */
-  .split-grid, .split-grid--narrow, .split-grid--wide,
-  .quad-grid, .tri-grid, .dual-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Activity + retention rows: stack so long content can wrap.
-     Each cell becomes a separate "row" in the stack with the same
-     border treatment its parent provides. */
-  .activity-row, .retention-row {
-    grid-template-columns: 1fr !important;
-    gap: 8px;
-  }
-
-  /* Cards: less padding so content gets the room */
-  .card { padding: 16px; }
-  .card-sm { padding: 12px; }
-
-  /* Touch-friendly inputs/buttons. 16px font-size prevents iOS zoom
-     on focus. 44px height meets Apple's tap-target guideline. */
-  .input-field { font-size: 16px; padding: 12px 14px; min-height: 44px; }
-  .btn-primary, .btn-secondary, .btn-danger { min-height: 44px; padding: 10px 18px; }
-  .btn-ghost { min-height: 40px; }
-
-  /* Data table content can run wide; let the cell padding shrink and
-     enable horizontal scroll via .table-scroll wrappers added by pages. */
-  .data-table thead th { padding: 10px 14px; font-size: 10.5px; }
-  .data-table td       { padding: 12px 14px; font-size: 13.5px; }
-
-  /* Cards that contain a wide data table need to scroll horizontally
-     instead of forcing the whole page to scroll. :has() is supported in
-     all modern browsers (Safari 15.4+, Chrome 105+); for the shop's
-     iPad/iPhone target devices that's everything. */
-  .card:has(> .data-table),
-  .card:has(> table.data-table) {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* Tablet — 768px and up. Most grids back to multi-column.
-   Sidebar still drawer-mode below 1024px so the counter iPad gets
-   the floor-staff experience (more screen real estate for content). */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 220ms cubic-bezier(.4,0,.2,1);
-    width: 280px;
-  }
-  .sidebar.is-open { transform: translateX(0); box-shadow: 0 20px 50px rgba(0,0,0,0.4); }
-  .mobile-backdrop.is-open { display: block; }
-  .mobile-topbar { display: flex; }
-  .main-area { margin-left: 0; }
-  .page-content { padding: 24px 24px 48px; max-width: 100%; }
-
-  /* Mid-density grids on tablet */
-  .quad-grid { grid-template-columns: repeat(2, 1fr); }
-  /* Activity row on tablet: 2-column compact layout so timestamp/action
-     stay aligned and actor floats right. */
-  .activity-row { grid-template-columns: 200px 1fr; }
-  .retention-row { grid-template-columns: 1fr auto; }
-}
-
-/* Desktop — 1024px+. Sidebar always-visible, no mobile chrome. */
-@media (min-width: 1024px) {
-  .mobile-topbar { display: none; }
-  .mobile-backdrop { display: none !important; }
+/* Disable the 300ms tap delay + tap-highlight flash on phones. */
+a, button, [role="button"],
+.btn-primary, .btn-secondary, .btn-ghost, .btn-danger {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* ─── Table ─────────────────────────────────────────────────── */
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .data-table thead th {
-  text-align: left; padding: 11px 20px;
-  font-size: 11px; font-weight: 600;
+  text-align: left; padding: 10px 14px;
+  font-size: var(--text-xs); font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--ink-muted);
   background: var(--surface-2);
@@ -389,14 +435,21 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 .data-table thead th:first-child { border-top-left-radius: var(--r-md); }
 .data-table thead th:last-child  { border-top-right-radius: var(--r-md); }
 .data-table td {
-  padding: 14px 20px;
-  font-size: 14px;
+  padding: 12px 14px;
+  font-size: var(--text-sm);
   border-bottom: 1px solid var(--border-soft);
   vertical-align: middle;
 }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr { transition: background 100ms; cursor: pointer; }
 .data-table tbody tr:hover { background: var(--surface-2); }
+/* Cards wrapping a wide data table scroll horizontally instead of
+   forcing the whole page to scroll. */
+.card:has(> .data-table),
+.card:has(> table.data-table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
 /* ─── Search bar ────────────────────────────────────────────── */
 .search-bar {
@@ -404,19 +457,23 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
   padding: 12px 16px; border-radius: var(--r-md);
   background: var(--surface); border: 1px solid var(--border);
   transition: border-color 140ms, box-shadow 140ms;
+  min-width: 0;
 }
 .search-bar:focus-within {
   border-color: var(--ink);
   box-shadow: 0 0 0 4px rgba(26,23,21,0.07);
 }
 .search-bar input {
-  flex: 1; background: transparent; border: none; outline: none;
-  font-size: 14.5px; font-family: inherit;
-  color: var(--ink); line-height: 1.4;
+  flex: 1; min-width: 0;
+  background: transparent; border: none; outline: none;
+  font-size: var(--text-base);   /* 16px on every viewport — no iOS auto-zoom */
+  font-family: inherit;
+  color: var(--ink);
+  line-height: var(--leading-snug);
 }
 .search-bar input::placeholder { color: var(--ink-faint); }
 
-/* ─── Points card (the customer profile loyalty card) ───────── */
+/* ─── Points card (customer profile loyalty card) ───────────── */
 .points-card {
   background:
     radial-gradient(120% 80% at 100% 0%, rgba(176,50,43,0.18), transparent 60%),
@@ -431,7 +488,7 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
 /* ─── Stat card ─────────────────────────────────────────────── */
 .stat-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-lg); padding: 20px 22px;
+  border-radius: var(--r-lg); padding: 16px 18px;
   display: flex; align-items: flex-start; gap: 14px;
   transition: border-color 140ms, transform 140ms, box-shadow 140ms;
 }
@@ -441,8 +498,8 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   background: var(--surface-2); color: var(--ink);
 }
-.stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); }
-.stat-value { font-size: 28px; font-weight: 500; line-height: 1.1; margin-top: 4px; font-family: var(--font-dm-serif), serif; letter-spacing: -0.01em; }
+.stat-label { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); }
+.stat-value { font-size: var(--text-2xl); font-weight: 500; line-height: 1.1; margin-top: 4px; font-family: var(--font-dm-serif), serif; letter-spacing: -0.01em; }
 
 /* ─── Subtle dot grid for splash backgrounds ───────────────── */
 .dot-grid {
@@ -456,6 +513,105 @@ h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: 1.15; }
   to   { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fade-up 240ms ease-out both; }
+
+/* ═══════════════════════════════════════════════════════════════
+   DESKTOP — min-width: 768px
+   ═══════════════════════════════════════════════════════════════
+   Above 768px we treat the device as "desktop-class": the sidebar
+   reappears as a persistent column, the mobile top bar disappears,
+   and the page lays out as a true two-column shell. This breakpoint
+   covers iPad portrait (768) all the way up to large monitors —
+   anything smaller than 768 stays single-column mobile.
+   ─────────────────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  /* Two-column shell: the .app-shell becomes a flex row, with the
+     sidebar pinned via position:fixed (still doesn't take flex slot)
+     and the main-area pushed right by exactly the sidebar's width. */
+  .app-shell {
+    display: flex;
+  }
+
+  .sidebar {
+    /* Back in the document — but pinned, so the main column reserves
+       space via main-area's margin-left, not via a flex slot. */
+    display: flex;
+    position: fixed;
+    left: 0; top: 0;
+    width: var(--sidebar-w);
+    height: 100dvh;
+    flex-direction: column;
+    z-index: 40;
+    background: var(--sidebar-bg);
+    border-right: 1px solid #000;
+    animation: none;   /* persistent, not animating in */
+    box-shadow: none;
+  }
+
+  .mobile-topbar   { display: none; }
+  .mobile-backdrop { display: none; }
+
+  .main-area {
+    flex: 1;
+    margin-left: var(--sidebar-w);
+  }
+
+  .page-content {
+    padding:
+      24px
+      calc(24px + env(safe-area-inset-right))
+      48px
+      calc(24px + env(safe-area-inset-left));
+  }
+
+  .card    { padding: 20px; }
+  .card-sm { padding: 14px; }
+
+  .quad-grid     { grid-template-columns: repeat(2, 1fr); }
+  .dual-grid     { grid-template-columns: 1fr 1fr; gap: 16px; }
+  .activity-row  { grid-template-columns: 200px 1fr; gap: 16px; }
+  .retention-row { grid-template-columns: 1fr auto;  gap: 16px; }
+
+  .stat-card { padding: 18px 20px; }
+
+  .data-table thead th { padding: 11px 18px; }
+  .data-table td       { padding: 13px 18px; font-size: var(--text-base); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LARGE DESKTOP — min-width: 1024px
+   ═══════════════════════════════════════════════════════════════
+   At laptop+ widths we relax the grids to their full multi-column
+   form and let the page-content breathe up to 1180px wide.
+   ─────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  .page-content {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 40px 56px;
+  }
+
+  .card    { padding: 22px; }
+  .stat-card { padding: 20px 22px; }
+
+  .split-grid          { grid-template-columns: 320px 1fr; gap: 20px; }
+  .split-grid--narrow  { grid-template-columns: 280px 1fr; gap: 20px; }
+  .split-grid--wide    { grid-template-columns: 360px 1fr; gap: 20px; }
+  .quad-grid           { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .tri-grid            { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .activity-row        { grid-template-columns: 180px 140px 1fr 200px; gap: 16px; align-items: start; }
+  .retention-row       { grid-template-columns: 1fr 200px 200px auto;   gap: 16px; align-items: center; }
+
+  .data-table thead th { padding: 11px 20px; }
+  .data-table td       { padding: 14px 20px; font-size: var(--text-base); }
+
+  /* On desktop with mouse input, buttons can be tighter than the
+     44px thumb target needed on phones. */
+  .btn-primary, .btn-secondary, .btn-danger {
+    padding: 10px 18px;
+    min-height: 38px;
+  }
+  .btn-ghost { padding: 8px 12px; min-height: 32px; }
+}
 
 /* ─── Print ─────────────────────────────────────────────────── */
 @media print {

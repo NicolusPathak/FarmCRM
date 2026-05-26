@@ -81,8 +81,21 @@ export default function OrdersClient({ orders: initial }: { orders: Order[] }) {
                       </div>
                     </td>
                     <td>
-                      <div style={{ fontWeight: 600, opacity: voided ? 0.55 : 1 }}>{cust?.full_name ?? '—'}</div>
-                      {cust?.customer_number && <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 1, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>{cust.customer_number}</div>}
+                      <div className="cust-cell">
+                        <div className="cust-cell__row">
+                          <span className="cust-cell__name" style={{ opacity: voided ? 0.55 : 1 }}>
+                            {cust?.full_name ?? '—'}
+                          </span>
+                          {cust?.phone_number && (
+                            <span className="cust-cell__phone" title={cust.phone_number}>
+                              {cust.phone_number}
+                            </span>
+                          )}
+                        </div>
+                        {cust?.customer_number && (
+                          <div className="cust-cell__num">{cust.customer_number}</div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ color: 'var(--ink-2)' }}>{formatDate(o.order_date)}</td>
                     <td>
@@ -107,6 +120,61 @@ export default function OrdersClient({ orders: initial }: { orders: Order[] }) {
       <style jsx>{`
         .spin { animation: spin 800ms linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+      <style jsx global>{`
+        /* Two-row customer cell: name + phone-pill on the first row, the
+           internal customer # on the second. Phone sits on the right as a
+           subtle pill so it reads as metadata, not as a competing primary.
+           Phone-pill stays a single line; name truncates if the row is
+           tight, so the pill remains visible. */
+        .cust-cell {
+          display: flex; flex-direction: column;
+          gap: 3px;
+          min-width: 0;
+        }
+        .cust-cell__row {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 10px;
+          min-width: 0;
+        }
+        .cust-cell__name {
+          flex: 1; min-width: 0;
+          font-weight: 600;
+          font-size: 14px;
+          color: var(--ink);
+          letter-spacing: -0.005em;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .cust-cell__phone {
+          flex-shrink: 0;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--ink-2);
+          background: var(--surface-2);
+          padding: 3px 9px;
+          border-radius: 999px;
+          border: 1px solid var(--border-soft);
+          white-space: nowrap;
+          font-variant-numeric: tabular-nums;
+        }
+        .cust-cell__num {
+          font-family: ui-monospace, SFMono-Regular, monospace;
+          font-size: 12px;
+          color: var(--ink-muted);
+        }
+        /* Narrow phones: drop the pill on a new line under the name so
+           neither piece truncates awkwardly. The table is already in a
+           horizontally-scrollable card on mobile, but stacking keeps the
+           common case readable without forcing a sideways swipe. */
+        @media (max-width: 520px) {
+          .cust-cell__row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+          }
+          .cust-cell__phone { align-self: flex-start; }
+        }
       `}</style>
     </div>
   );

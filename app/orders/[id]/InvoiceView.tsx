@@ -339,8 +339,35 @@ export default function InvoiceView({ order: init, role }: Props) {
               <CustomerPicker value={draftCustomer} onChange={setDraftCustomer} />
             ) : customer ? (
               <div style={{ padding: '14px 16px', borderRadius: 10, background: 'var(--warm-gray)' }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{customer.full_name}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{customer.customer_number}</div>
+                {/* Name left, phone pill right — same pattern as the orders list
+                    cell, so the "who" reads at a glance with the contact next to it. */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {customer.full_name}
+                  </div>
+                  {customer.phone_number && (
+                    <div
+                      title={customer.phone_number}
+                      style={{
+                        flexShrink: 0,
+                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                        fontSize: 12.5,
+                        fontWeight: 500,
+                        color: 'var(--ink-2)',
+                        background: 'var(--surface)',
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        border: '1px solid var(--border-soft)',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {customer.phone_number}
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                  {customer.customer_number}
+                </div>
               </div>
             ) : (
               <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>—</div>

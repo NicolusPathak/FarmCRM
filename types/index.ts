@@ -56,7 +56,7 @@ export interface Order {
   created_by: string | null;
   created_by_name: string | null;
   // Joined fields (optional — present when queried with select)
-  customer?: Pick<Customer, 'id' | 'full_name' | 'customer_number'>;
+  customer?: Pick<Customer, 'id' | 'full_name' | 'customer_number' | 'phone_number'>;
   order_items?: OrderItem[];
 }
 
@@ -67,6 +67,11 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  // Identity from the products catalog (migration 10). NULL for legacy
+  // rows and for the "Whole goat service fee" helper line, which carries
+  // the special code 'service_fee:<base-code>' so the server can validate
+  // it without giving it a row in the catalog.
+  product_code: string | null;
 }
 
 export interface NewCustomerForm {
@@ -81,6 +86,9 @@ export interface NewOrderItemForm {
   item_name: string;
   quantity: number;
   unit_price: number;
+  // Optional on the wire — admin override custom lines can omit it.
+  // Staff orders must include it on every line; the server enforces this.
+  product_code?: string | null;
 }
 
 export interface NewOrderForm {
@@ -136,30 +144,46 @@ export interface AuditLogEntry {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Categories + Reports (migration 09)
+// Products (migration 10) — fixed catalog for the order entry UI.
 // ─────────────────────────────────────────────────────────────
 
-export interface ProductCategory {
+export type ProductUnit = 'each' | 'lb' | 'tray';
+
+export interface Product {
   id: string;
+  code: string;
+  group_code: string;
+  group_label: string;
   name: string;
-  color: string;
+  unit: ProductUnit;
+  default_price: number;
+  service_fee: number;
+  // 7-char hex used as the top-level catalog card tint on the order
+  // screen. Read from the group's lowest-sorted product.
+  accent_color: string;
   sort_order: number;
   archived_at: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
-export interface CategoryAlias {
-  id: string;
-  category_id: string;
-  alias: string;
-  alias_normalized: string;
-  created_at: string;
+// Grouped shape consumed by the order-entry UI: one entry per top-level
+// card, with the sub-products inside it.
+export interface ProductGroup {
+  code: string;
+  label: string;
+  // Tint inherited from the group's lowest-sorted product.
+  accent_color: string;
+  products: Product[];
 }
 
-export interface CategoryWithAliases extends ProductCategory {
-  aliases: CategoryAlias[];
-}
+// ─────────────────────────────────────────────────────────────
+// Reports
+// ─────────────────────────────────────────────────────────────
+//
+// Note: migration 09's product_categories / category_aliases tables
+// still exist in the DB but are no longer read by the app — the
+// catalog in migration 10 supplies all bucketing. Types for those
+// tables were removed; if a future cleanup migration drops them,
+// nothing in the app needs to change.
 
 // One row in the per-item ranked list on the report.
 export interface ReportItemRow {

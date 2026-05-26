@@ -119,8 +119,7 @@ export default function DashboardClient({ stats, role }: Props) {
           <input
             value={query} onChange={onInput}
             onFocus={() => { if (results.length) setShowDrop(true); }}
-            placeholder="Search customers by name, phone, customer #, city, street, or ZIP"
-            style={{ fontSize: 15 }}
+            placeholder="Search customers by name, phone, #, city, or ZIP"
             autoComplete="off"
           />
           {query && (

@@ -3,11 +3,12 @@
 // Functions that mutate accept an `actor: SessionUser` so we can write to audit_log.
 
 import { createSupabaseAdminClient } from './supabase-server';
-import type { Customer, Order, NewCustomerForm, NewOrderForm, SessionUser, PaymentMethod } from '@/types';
+import type { Customer, Order, NewCustomerForm, NewOrderForm, SessionUser, PaymentMethod, Product } from '@/types';
 import { isPaymentMethod } from '@/types';
 import { digitSearchPattern, normalizePhone, shopRanges } from './utils';
 import { logAuditOrFail } from './audit';
 import { clientError } from './api-error';
+import { listProducts } from './products';
 
 // Caps for input validation — kept in one place so they can't drift between
 // the order-create and order-edit paths.
@@ -16,7 +17,7 @@ const MAX_NAME_LEN     = 120;
 const MAX_NOTE_LEN     = 500;
 const MAX_ADDR_LEN     = 500;
 
-function validateOrderItems(items: unknown): asserts items is { item_name: string; quantity: number; unit_price: number }[] {
+function validateOrderItems(items: unknown): asserts items is { item_name: string; quantity: number; unit_price: number; product_code?: string | null }[] {
   if (!Array.isArray(items) || items.length === 0) clientError('At least one item is required.');
   for (const [idx, raw] of items.entries()) {
     if (!raw || typeof raw !== 'object') clientError(`Item ${idx + 1} is malformed.`);
@@ -30,6 +31,71 @@ function validateOrderItems(items: unknown): asserts items is { item_name: strin
     if (qty > MAX_LINE_QTY)          clientError(`Item ${idx + 1} quantity is unrealistically large (max ${MAX_LINE_QTY}).`);
     if (!Number.isFinite(px))        clientError(`Item ${idx + 1} has an invalid price.`);
     if (px < 0)                      clientError(`Item ${idx + 1} price cannot be negative.`);
+  }
+}
+
+// Cap quantity for fractional values (lb-priced lines round to 0.001).
+function roundQty(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+// Enforce that staff orders match the catalog: every line must carry a
+// known `product_code` and `unit_price` equal to the catalog default.
+// Whole-goat service fee lines carry the synthetic code
+// `service_fee:<base-code>` and must match the base product's
+// `service_fee` value. Admins/owners skip this check — they're allowed
+// to override on-the-fly during a transaction.
+function assertStaffCatalogPrices(
+  items: { item_name: string; quantity: number; unit_price: number; product_code?: string | null }[],
+  products: Product[],
+): void {
+  const byCode = new Map(products.map((p) => [p.code, p]));
+  for (const [idx, item] of items.entries()) {
+    const code = (item.product_code ?? '').trim();
+    if (!code) clientError(`Item ${idx + 1} is not on the menu. Staff can only sell catalog products.`);
+
+    if (code.startsWith('service_fee:')) {
+      const baseCode = code.slice('service_fee:'.length);
+      const base = byCode.get(baseCode);
+      if (!base)              clientError(`Item ${idx + 1} references unknown product "${baseCode}".`);
+      if (Number(base.service_fee) <= 0) clientError(`Item ${idx + 1} cannot apply a service fee.`);
+      if (Number(item.unit_price) !== Number(base.service_fee)) {
+        clientError(`Item ${idx + 1} service fee must be $${Number(base.service_fee).toFixed(2)}.`);
+      }
+      continue;
+    }
+
+    const product = byCode.get(code);
+    if (!product) clientError(`Item ${idx + 1} references unknown product "${code}".`);
+    if (Number(item.unit_price) !== Number(product.default_price)) {
+      clientError(`Item ${idx + 1} price must be $${Number(product.default_price).toFixed(2)} (catalog).`);
+    }
+  }
+
+  // Coupling guard: if a product's catalog row carries a service_fee > 0,
+  // a staff order containing that product MUST also carry the matching
+  // 'service_fee:<code>' line. Without this check, a tampered client could
+  // hide the fee line and pocket the service charge as a customer discount.
+  // (Admin/owner orders bypass assertStaffCatalogPrices entirely and can
+  // legitimately remove the fee — e.g. comping a regular.)
+  const codesPresent = new Set(items.map((i) => (i.product_code ?? '').trim()).filter(Boolean));
+  for (const item of items) {
+    const code = (item.product_code ?? '').trim();
+    if (!code || code.startsWith('service_fee:')) continue;
+    const product = byCode.get(code);
+    if (!product) continue;
+    if (Number(product.service_fee) > 0 && !codesPresent.has(`service_fee:${code}`)) {
+      clientError(`${product.name} requires a $${Number(product.service_fee).toFixed(2)} service fee. Re-add it from the catalog.`);
+    }
+  }
+  // Reject orphan fee lines (fee submitted with no matching parent product).
+  for (const item of items) {
+    const code = (item.product_code ?? '').trim();
+    if (!code.startsWith('service_fee:')) continue;
+    const baseCode = code.slice('service_fee:'.length);
+    if (!codesPresent.has(baseCode)) {
+      clientError(`Service fee for "${baseCode}" has no matching product in this order.`);
+    }
   }
 }
 
@@ -111,12 +177,20 @@ export async function createCustomer(form: NewCustomerForm, actor: SessionUser):
   if (!full_name) clientError('Full name is required.');
   if (full_name.length > MAX_NAME_LEN) clientError(`Name is too long (max ${MAX_NAME_LEN} characters).`);
 
-  // Coalesce optional fields — clients may omit them entirely.
+  // Phone is required on the interactive create path so the orders list,
+  // retention queries, and search-by-phone all have something to match on.
+  // (The bulk-import path inserts directly via the import route and is
+  // allowed to leave phone NULL for legacy rows — this guard only applies
+  // when a human creates a customer through /api/customers.)
   // Phones are normalized to a canonical "(NNN) NNN-NNNN" so that
   // "(817) 555-1234", "817-555-1234", and "8175551234" all collapse to one
   // value — preventing duplicate customers from format-only differences.
-  const phoneRaw     = (form.phone_number ?? '').trim();
-  const phone_number = phoneRaw ? normalizePhone(phoneRaw) : null;
+  const phoneRaw = (form.phone_number ?? '').trim();
+  if (!phoneRaw) clientError('Phone number is required.');
+  if (phoneRaw.replace(/\D/g, '').length < 7) {
+    clientError('Phone number looks too short — include the area code.');
+  }
+  const phone_number = normalizePhone(phoneRaw);
   const street       = (form.street       ?? '').trim() || null;
   const city         = (form.city         ?? '').trim() || null;
   const zip_code     = (form.zip_code     ?? '').trim() || null;
@@ -126,7 +200,8 @@ export async function createCustomer(form: NewCustomerForm, actor: SessionUser):
 
   // Phone-uniqueness pre-check — duplicate also blocked at DB layer (unique
   // partial index in migration 01), this is for the human-readable 409.
-  if (phone_number) {
+  // Phone is now required on this code path, so no null-guard is needed.
+  {
     const { data: clash } = await sb
       .from('customers')
       .select('customer_number, full_name')
@@ -205,7 +280,7 @@ export async function getRecentOrders(limit = 10): Promise<Order[]> {
   const sb = createSupabaseAdminClient();
   const { data } = await sb
     .from('orders')
-    .select('*, customer:customers(id, full_name, customer_number)')
+    .select('*, customer:customers(id, full_name, customer_number, phone_number)')
     .order('created_at', { ascending: false })
     .limit(limit);
   return (data as Order[]) ?? [];
@@ -252,7 +327,7 @@ export async function searchOrders(query: string, limit = 50): Promise<Order[]> 
 
   const { data } = await sb
     .from('orders')
-    .select('*, customer:customers(id, full_name, customer_number)')
+    .select('*, customer:customers(id, full_name, customer_number, phone_number)')
     .or(orParts.join(','))
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -268,6 +343,13 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
   validateOrderItems(form.items);
   const notes = (form.notes ?? '').trim() || null;
   if (notes && notes.length > MAX_NOTE_LEN) clientError(`Notes are too long (max ${MAX_NOTE_LEN}).`);
+
+  // Staff are locked to catalog prices. Admin/owner can override per-line.
+  // Done before any DB writes so a tampered payload fails fast.
+  if (actor.role === 'staff') {
+    const catalog = await listProducts();
+    assertStaffCatalogPrices(form.items, catalog);
+  }
 
   // payment_method: default to 'cash' if missing (defensive — UI always
   // sends it). Validate explicitly so we never bounce a CHECK violation
@@ -289,9 +371,15 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
 
   // Points redemption (optional). Staff types how many points the customer
   // wants to use and the dollar discount that applies. Both default to 0.
+  //
+  // Role gate: staff are not allowed to apply ANY discount. Admin/owner can.
+  // Enforced here so a tampered client can't bypass the UI lock.
   const pointsRedeemed = Math.max(0, Math.floor(Number(form.points_redeemed ?? 0)));
   const rawDiscount    = Math.max(0, Number(form.redemption_discount ?? 0));
   const redemptionDiscount = Math.round(rawDiscount * 100) / 100; // 2-decimal money
+  if ((pointsRedeemed > 0 || redemptionDiscount > 0) && actor.role === 'staff') {
+    clientError('Only an admin can apply a points discount.', 403);
+  }
   if (pointsRedeemed > 0 || redemptionDiscount > 0) {
     if (!Number.isFinite(pointsRedeemed) || !Number.isFinite(redemptionDiscount)) {
       clientError('Invalid points/discount values.');
@@ -349,11 +437,12 @@ export async function createOrder(form: NewOrderForm, actor: SessionUser): Promi
   const orderId = (order as any).id as string;
 
   const items = form.items.map((i) => ({
-    order_id:   orderId,
-    item_name:  i.item_name.trim(),
-    quantity:   Number(i.quantity),
-    unit_price: Number(i.unit_price),
-    line_total: 0,
+    order_id:     orderId,
+    item_name:    i.item_name.trim(),
+    quantity:     roundQty(Number(i.quantity)),
+    unit_price:   Number(i.unit_price),
+    line_total:   0,
+    product_code: (i.product_code ?? null) || null,
   }));
 
   const { error: itemsErr } = await sb.from('order_items').insert(items as any);
@@ -483,7 +572,7 @@ export async function getDashboardStats(role: 'admin' | 'staff' | 'owner' = 'adm
     sb.from('orders').select('*', { count: 'exact', head: true }),
     sb.from('customers').select('*').is('archived_at', null).order('created_at', { ascending: false }).limit(5),
     sb.from('orders')
-      .select('*, customer:customers(id, full_name, customer_number)')
+      .select('*, customer:customers(id, full_name, customer_number, phone_number)')
       .order('created_at', { ascending: false })
       .limit(5),
   ]);

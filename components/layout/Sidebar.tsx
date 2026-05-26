@@ -15,7 +15,7 @@ import {
   Download,
   Menu,
   BarChart3,
-  Tag,
+  Package,
 } from 'lucide-react';
 import { LoadingLink as Link, useLoadingRouter, useLoadingAction } from '@/components/ui/GlobalLoading';
 import type { SessionUser } from '@/types';
@@ -60,7 +60,7 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
     { href: '/admin/reports',    label: 'End of day', Icon: BarChart3,     adminOnly: true },
     { href: '/admin/retention',  label: 'Retention',  Icon: AlertTriangle, adminOnly: true, badge: retentionCount },
     { href: '/admin/staff',      label: user.role === 'owner' ? 'Admin PINs' : 'Staff PINs', Icon: KeyRound, adminOnly: true },
-    { href: '/admin/categories', label: 'Categories', Icon: Tag,           adminOnly: true },
+    { href: '/admin/products',   label: 'Products',   Icon: Package,       adminOnly: true },
     { href: '/admin/activity',   label: 'Activity',   Icon: Activity,      adminOnly: true },
     { href: '/admin/export',     label: 'Export',     Icon: Download,      adminOnly: true },
     { href: '/admin/settings',   label: 'Settings',   Icon: Settings,      adminOnly: true },
@@ -85,8 +85,10 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
   return (
     <>
       {/* Mobile top bar — only renders below 1024px (CSS gates display).
-          Hamburger toggles the drawer; brand mark gives users a visual
-          anchor on small screens so they don't feel disoriented. */}
+          Hamburger toggles the drawer; brand link doubles as a "home"
+          shortcut so users never feel stuck without a way back to the
+          dashboard. The user's role chip on the right reminds floor
+          staff which session they're in (admin/staff). */}
       <div className="mobile-topbar no-print">
         <button
           type="button"
@@ -95,14 +97,34 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((v) => !v)}
         >
-          <Menu size={20} strokeWidth={1.8} />
+          <Menu size={22} strokeWidth={2} />
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <Image src="/logo.png" alt="" width={28} height={28} style={{ objectFit: 'contain' }} />
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <Link
+          href={isOwner ? '/admin/staff' : '/dashboard'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, minWidth: 0,
+            textDecoration: 'none', color: 'var(--ink)', flex: 1,
+          }}
+        >
+          <Image src="/logo.png" alt="" width={32} height={32} style={{ objectFit: 'contain', flexShrink: 0 }} />
+          <div style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.005em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             Chaudhary Farm
           </div>
-        </div>
+        </Link>
+        <span
+          style={{
+            padding: '4px 10px',
+            borderRadius: 999,
+            background: hasAdminAccess ? 'var(--ink)' : 'var(--surface-2)',
+            color: hasAdminAccess ? 'var(--bg)' : 'var(--ink-2)',
+            fontSize: 10.5, fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            flexShrink: 0,
+          }}
+          aria-label={`Signed in as ${user.role}`}
+        >
+          {user.role}
+        </span>
       </div>
 
       {/* Backdrop — only shown when drawer is open. Tap to close. */}

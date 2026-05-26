@@ -22,7 +22,16 @@ export default function NewCustomerForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.full_name.trim()) { setError('Full name is required.'); return; }
+    if (!form.full_name.trim())   { setError('Full name is required.'); return; }
+    // Phone is required up-front so the orders list, retention emails,
+    // and customer-search-by-phone all have something to match on.
+    // Server validates again; the format check is forgiving here so
+    // pasted formats like "(817) 555-1234" or "8175551234" both pass.
+    if (!form.phone_number.trim()) { setError('Phone number is required.'); return; }
+    if (form.phone_number.replace(/\D/g, '').length < 7) {
+      setError('Phone number looks too short — include the area code.');
+      return;
+    }
     const action = nextAction.current;
     setSaving(action); setError('');
     await withLoading(async () => {
@@ -45,8 +54,17 @@ export default function NewCustomerForm() {
         </div>
 
         <div>
-          <label className="label">Phone number</label>
-          <input className="input-field" type="tel" placeholder="(817) 555-0101" value={form.phone_number} onChange={e => set('phone_number', e.target.value)} />
+          <label className="label">Phone number <span style={{ color: 'var(--danger)' }}>*</span></label>
+          <input
+            className="input-field"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="(817) 555-0101"
+            value={form.phone_number}
+            onChange={(e) => set('phone_number', e.target.value)}
+            required
+          />
         </div>
 
         <div style={{ height: 1, background: 'var(--border-soft)', margin: '4px 0' }} />

@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/auth';
 import AppShell from '@/components/layout/AppShell';
 import PageHeader from '@/components/layout/PageHeader';
 import ReportClient from './ReportClient';
-import { defaultReportDate, getReport, loadCategoriesWithAliases } from '@/lib/report';
+import { defaultReportDate, getReport } from '@/lib/report';
 
 export const metadata = { title: 'Sales report — Chaudhary Farm' };
 export const dynamic  = 'force-dynamic';
@@ -18,20 +18,16 @@ export default async function ReportsPage({ searchParams }: PageProps) {
   const from   = params.from ?? today;
   const to     = params.to   ?? from;
 
-  const [report, categories] = await Promise.all([
-    getReport(from, to),
-    loadCategoriesWithAliases(),
-  ]);
+  const report = await getReport(from, to);
 
   return (
     <AppShell user={user}>
       <PageHeader
         title="Sales report"
-        subtitle="Today, this week, this month, or any custom range — broken down by category."
+        subtitle="Today, this week, this month, or any custom range — sliced by catalog group."
       />
       <ReportClient
         initialReport={report}
-        initialCategories={categories}
         initialFrom={from}
         initialTo={to}
         today={today}
