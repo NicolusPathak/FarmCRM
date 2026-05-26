@@ -138,7 +138,7 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
       {/* Brand */}
       <div style={{ padding: '24px 20px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(176,50,43,0.18)' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 5, border: '1px solid var(--border)' }}>
             <Image src="/logo.png" alt="Chaudhary Farm" width={46} height={46} style={{ objectFit: 'contain' }} />
           </div>
           <div style={{ minWidth: 0 }}>
@@ -195,15 +195,15 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
       </nav>
 
       {/* User card — flex-shrink:0 so the Sign out button is always reachable. */}
-      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(237,230,216,0.06)', padding: 12 }}>
+      <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px 12px' }}>
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
             background: hasAdminAccess ? 'var(--brand)' : 'var(--sidebar-bg-soft)',
-            color: 'var(--sidebar-text)',
+            color: hasAdminAccess ? '#fff' : 'var(--sidebar-text)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12, fontWeight: 600, flexShrink: 0,
-            border: '1px solid rgba(237,230,216,0.08)',
+            border: '1px solid var(--border)',
           }}>{user.name.charAt(0).toUpperCase()}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sidebar-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
@@ -213,11 +213,11 @@ export default function Sidebar({ user, retentionCount = 0 }: Props) {
         <button onClick={signOut} style={{
           display: 'flex', alignItems: 'center', gap: 10, width: '100%',
           padding: '9px 12px', borderRadius: 10, background: 'transparent',
-          border: '1px solid rgba(237,230,216,0.08)', cursor: 'pointer',
+          border: '1px solid var(--border)', cursor: 'pointer',
           color: 'var(--sidebar-text-mute)', fontSize: 13, fontWeight: 500,
           fontFamily: 'inherit', transition: 'all 120ms',
         }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(237,230,216,0.06)'; (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg-soft)'; (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text-mute)'; }}
         >
           <LogOut size={15} strokeWidth={2} />

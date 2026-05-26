@@ -155,7 +155,7 @@ export default function ImportClient() {
         <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, color: 'var(--ink-2)' }}>
           <FileSpreadsheet size={24} strokeWidth={1.6} />
         </div>
-        <p className="font-display" style={{ fontWeight: 400, fontSize: 22, marginBottom: 6 }}>
+        <p className="font-display" style={{ fontSize: 22, marginBottom: 6 }}>
           Drop your Excel file here
         </p>
         <p style={{ fontSize: 13.5, color: 'var(--ink-muted)', marginBottom: 22, lineHeight: 1.55 }}>
@@ -212,7 +212,7 @@ export default function ImportClient() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <p style={{ fontWeight: 700, fontSize: 18, fontFamily: "var(--font-dm-serif), serif" }}>
+            <p style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.015em' }}>
               Ready to import {rows.length.toLocaleString()} customers
             </p>
             <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
@@ -287,7 +287,7 @@ export default function ImportClient() {
   if (step === 'importing') return (
     <div className="card" style={{ maxWidth: 420, textAlign: 'center', padding: '60px 40px' }}>
       <Spinner size={40} />
-      <p style={{ fontWeight: 700, fontSize: 18, marginTop: 24, marginBottom: 8, fontFamily: "var(--font-dm-serif), serif" }}>
+      <p style={{ fontWeight: 700, fontSize: 18, marginTop: 24, marginBottom: 8, letterSpacing: '-0.015em' }}>
         Importing customers…
       </p>
       <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
@@ -303,7 +303,7 @@ export default function ImportClient() {
       <div className="card">
         <div style={{ textAlign: 'center', padding: '16px 0 28px' }}>
           <div style={{ fontSize: 56, marginBottom: 14, lineHeight: 1 }}>🎉</div>
-          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, fontFamily: "var(--font-dm-serif), serif" }}>
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>
             Import Complete!
           </h2>
           <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
@@ -313,16 +313,16 @@ export default function ImportClient() {
 
         {/* Results */}
         <div className="dual-grid" style={{ marginBottom: 24 }}>
-          <div style={{ textAlign: 'center', padding: '20px', background: '#e6f9f0', borderRadius: 12 }}>
-            <div style={{ fontSize: 36, fontWeight: 700, color: '#1a7a4a', fontFamily: "var(--font-dm-serif), serif", lineHeight: 1 }}>
+          <div style={{ textAlign: 'center', padding: '20px', background: 'var(--success-bg)', borderRadius: 12 }}>
+            <div style={{ fontSize: 36, fontWeight: 700, color: 'var(--success)', letterSpacing: '-0.02em', lineHeight: 1 }}>
               {(result?.inserted ?? 0).toLocaleString()}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 6 }}>
               Customers Imported
             </div>
           </div>
           <div style={{ textAlign: 'center', padding: '20px', background: 'var(--warm-gray)', borderRadius: 12 }}>
-            <div style={{ fontSize: 36, fontWeight: 700, fontFamily: "var(--font-dm-serif), serif", lineHeight: 1 }}>
+            <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1 }}>
               {(result?.skipped ?? 0).toLocaleString()}
             </div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 6 }}>

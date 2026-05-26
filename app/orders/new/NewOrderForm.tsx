@@ -37,8 +37,8 @@ function darkenHex(hex: string, amount = 0.22): string {
 
 function tileVars(accent: string): React.CSSProperties {
   return {
-    ['--tile-accent' as string]: accent || '#1A1715',
-    ['--tile-deep'   as string]: darkenHex(accent || '#1A1715', 0.28),
+    ['--tile-accent' as string]: accent || '#0F172A',
+    ['--tile-deep'   as string]: darkenHex(accent || '#0F172A', 0.28),
   };
 }
 

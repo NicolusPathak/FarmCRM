@@ -170,7 +170,7 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                 {editing ? (
                   <input className="input-field" value={draft.full_name} onChange={e => setDraft(d => ({ ...d, full_name: e.target.value }))} style={{ textAlign: 'center', fontWeight: 700 }} />
                 ) : (
-                  <div style={{ fontWeight: 700, fontSize: 17, lineHeight: 1.2, fontFamily: "var(--font-dm-serif), serif" }}>{customer.full_name}</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{customer.full_name}</div>
                 )}
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'monospace' }}>{customer.customer_number}</div>
               </div>
@@ -205,16 +205,22 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
 
           {/* Points card */}
           <div className="points-card">
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(237,230,216,0.55)', marginBottom: 6 }}>Points balance</div>
-                <div className="font-display" style={{ fontSize: 40, fontWeight: 400, color: 'var(--sidebar-text)', lineHeight: 1 }}>{customer.points_balance.toLocaleString()}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="label" style={{ marginBottom: 6 }}>Points balance</div>
+                <div style={{
+                  fontSize: 'clamp(28px, 10vw, 40px)',
+                  fontWeight: 700, color: 'var(--accent)', lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.02em',
+                  overflowWrap: 'anywhere',
+                }}>{customer.points_balance.toLocaleString()}</div>
               </div>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(237,230,216,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,106,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', flexShrink: 0 }}>
                 <Sparkles size={18} strokeWidth={1.8} />
               </div>
             </div>
-            <div style={{ borderTop: '1px solid rgba(237,230,216,0.1)', paddingTop: 12, fontSize: 11.5, color: 'rgba(237,230,216,0.55)' }}>
+            <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12, fontSize: 12, color: 'var(--ink-muted)' }}>
               $1 spent · 1 point
             </div>
 
@@ -222,7 +228,7 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                 credits, -100 deducts. Server validates the new balance can't
                 go negative. */}
             {isAdmin && (
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(237,230,216,0.1)' }}>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border-soft)' }}>
                 {adjusting ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <input
@@ -233,11 +239,9 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                       onChange={(e) => setAdjustDelta(e.target.value)}
                       placeholder="+50 or -100"
                       disabled={adjustSaving}
+                      className="input-field"
                       style={{
-                        padding: '8px 10px', fontSize: 14,
-                        background: 'rgba(237,230,216,0.08)',
-                        border: '1px solid rgba(237,230,216,0.18)',
-                        borderRadius: 8, color: 'var(--sidebar-text)',
+                        padding: '8px 10px', fontSize: 14, minHeight: 36,
                         fontFamily: 'ui-monospace, SFMono-Regular, monospace',
                       }}
                     />
@@ -248,19 +252,15 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                       placeholder="Reason (e.g. $5 off — 100 pts redeemed)"
                       disabled={adjustSaving}
                       maxLength={280}
-                      style={{
-                        padding: '8px 10px', fontSize: 13,
-                        background: 'rgba(237,230,216,0.08)',
-                        border: '1px solid rgba(237,230,216,0.18)',
-                        borderRadius: 8, color: 'var(--sidebar-text)',
-                      }}
+                      className="input-field"
+                      style={{ padding: '8px 10px', fontSize: 13, minHeight: 36 }}
                     />
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
                         onClick={commitAdjust}
                         disabled={adjustSaving || !adjustDelta}
                         className="btn-primary"
-                        style={{ flex: 1, padding: '8px', fontSize: 12.5 }}
+                        style={{ flex: 1, padding: '8px', fontSize: 12.5, minHeight: 36 }}
                       >
                         {adjustSaving ? <Loader2 size={12} className="spin" /> : <Check size={13} />}
                         Save
@@ -268,14 +268,8 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                       <button
                         onClick={cancelAdjust}
                         disabled={adjustSaving}
-                        style={{
-                          padding: '8px 12px', fontSize: 12.5,
-                          background: 'transparent',
-                          border: '1px solid rgba(237,230,216,0.2)',
-                          borderRadius: 8, cursor: 'pointer',
-                          color: 'rgba(237,230,216,0.85)',
-                          fontFamily: 'inherit',
-                        }}
+                        className="btn-secondary"
+                        style={{ padding: '8px 12px', fontSize: 12.5, minHeight: 36 }}
                       >
                         <X size={13} />
                       </button>
@@ -284,14 +278,10 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                 ) : (
                   <button
                     onClick={() => setAdjusting(true)}
+                    className="btn-secondary"
                     style={{
-                      width: '100%', padding: '8px',
-                      background: 'rgba(237,230,216,0.08)',
-                      border: '1px solid rgba(237,230,216,0.18)',
-                      borderRadius: 8, cursor: 'pointer',
-                      color: 'rgba(237,230,216,0.9)', fontSize: 12.5, fontWeight: 600,
-                      fontFamily: 'inherit',
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      width: '100%', padding: '8px', fontSize: 12.5, fontWeight: 600,
+                      minHeight: 36,
                     }}
                   >
                     <Pencil size={12} /> Adjust points
@@ -317,7 +307,7 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                   <s.Icon size={14} strokeWidth={1.8} style={{ color: 'var(--ink-muted)' }} />
                   <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-muted)' }}>{s.label}</span>
                 </div>
-                <div className="font-display" style={{ fontSize: 22, fontWeight: 400 }}>{s.value}</div>
+                <div className="font-display" style={{ fontSize: 22 }}>{s.value}</div>
               </div>
             ))}
           </div>
@@ -351,7 +341,7 @@ export default function CustomerProfile({ customer: init, orders, role }: Props)
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{o.order_number}</span>
-                              {voided && <span style={{ fontSize: 10, fontWeight: 700, background: '#B71C1C', color: '#fff', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>VOID</span>}
+                              {voided && <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--danger)', color: '#fff', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>VOID</span>}
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>{formatDate(o.order_date)}</div>
                           </td>

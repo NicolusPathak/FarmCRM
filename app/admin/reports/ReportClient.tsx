@@ -662,7 +662,7 @@ function KpiCard({ Icon, label, value, delta, deltaPct, deltaPrefix, subline }: 
         <div style={{ fontSize: 12, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {label}
         </div>
-        <div className="font-display" style={{ fontSize: 26, fontWeight: 400, lineHeight: 1.1, marginTop: 4 }}>
+        <div className="font-display" style={{ fontSize: 26, lineHeight: 1.1, marginTop: 4 }}>
           {value}
         </div>
         {hasDelta && (
@@ -814,8 +814,8 @@ function DonutChart({
                 letterSpacing="0.08em" fill="var(--ink-muted)" style={{ textTransform: 'uppercase' }}>
             {activeSlice ? activeSlice.s.name : centerLabel}
           </text>
-          <text x={cx} y={cy + 18} textAnchor="middle" fontSize="22" fontWeight="500"
-                fontFamily="var(--font-dm-serif), serif" fill="var(--ink)">
+          <text x={cx} y={cy + 18} textAnchor="middle" fontSize="22" fontWeight="700"
+                letterSpacing="-0.02em" fill="var(--ink)">
             {activeSlice ? formatCurrency(activeSlice.s.revenue) : centerValue}
           </text>
           {activeSlice && (

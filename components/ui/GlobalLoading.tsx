@@ -66,15 +66,15 @@ function CenterOverlay({ pending }: { pending: number }) {
         background: 'var(--surface, #fff)',
         borderRadius: 16,
         padding: '20px 26px',
-        boxShadow: '0 30px 60px rgba(22,19,17,0.28), 0 2px 0 rgba(255,255,255,0.6) inset',
+        boxShadow: '0 30px 60px rgba(15,23,42,0.18), 0 2px 0 rgba(255,255,255,0.6) inset',
         display: 'flex', alignItems: 'center', gap: 14,
         border: '1px solid var(--border, rgba(0,0,0,0.08))',
-        color: 'var(--ink, #161311)',
+        color: 'var(--ink, #0F172A)',
         fontSize: 14, fontWeight: 500,
         minWidth: 160, justifyContent: 'center',
       }}>
         <svg width={26} height={26} viewBox="0 0 24 24" fill="none"
-          style={{ animation: 'gl-spin 700ms linear infinite', color: 'var(--brand, #B0322B)' }}>
+          style={{ animation: 'gl-spin 700ms linear infinite', color: 'var(--accent, #006AFF)' }}>
           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.2" />
           <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
         </svg>

@@ -103,6 +103,21 @@ function assertStaffCatalogPrices(
 // CUSTOMERS
 // ─────────────────────────────────────────────────────────────
 
+// Paginated browse for the customers list. Returns the slice plus the total
+// non-archived count so the client can decide whether to show "Load more".
+export async function listCustomers(opts: { offset?: number; limit?: number } = {}): Promise<{ customers: Customer[]; total: number }> {
+  const sb     = createSupabaseAdminClient();
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const limit  = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  const { data, count } = await sb
+    .from('customers')
+    .select('*', { count: 'exact' })
+    .is('archived_at', null)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  return { customers: (data as Customer[]) ?? [], total: count ?? 0 };
+}
+
 export async function searchCustomers(query: string): Promise<Customer[]> {
   const sb = createSupabaseAdminClient();
   const q  = query.trim();
@@ -286,13 +301,48 @@ export async function getRecentOrders(limit = 10): Promise<Order[]> {
   return (data as Order[]) ?? [];
 }
 
+// Paginated browse. `fromIso`/`toIso` are inclusive UTC ISO timestamps and
+// filter on `order_date` (the business-meaningful date the order was placed,
+// independent of `created_at`). Returns the slice plus the total matching
+// count so the client can decide whether to show "Load more".
+export async function listOrders(opts: {
+  offset?: number;
+  limit?: number;
+  fromIso?: string | null;
+  toIso?: string | null;
+}): Promise<{ orders: Order[]; total: number }> {
+  const sb     = createSupabaseAdminClient();
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const limit  = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+
+  let q = sb
+    .from('orders')
+    .select('*, customer:customers(id, full_name, customer_number, phone_number)', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (opts.fromIso) q = q.gte('order_date', opts.fromIso);
+  if (opts.toIso)   q = q.lte('order_date', opts.toIso);
+
+  const { data, count } = await q;
+  return { orders: (data as Order[]) ?? [], total: count ?? 0 };
+}
+
 // Server-side order search. Looks across order_number, notes, customer
 // (full_name / phone_number / customer_number), and item name. Falls back to
 // most-recent orders when the query is empty so the list view stays useful.
-export async function searchOrders(query: string, limit = 50): Promise<Order[]> {
-  const sb = createSupabaseAdminClient();
-  const q  = query.trim();
-  if (!q) return getRecentOrders(limit);
+// Optional `fromIso`/`toIso` narrow the search to a date range on `order_date`.
+export async function searchOrders(
+  query: string,
+  opts: { limit?: number; fromIso?: string | null; toIso?: string | null } = {},
+): Promise<Order[]> {
+  const sb     = createSupabaseAdminClient();
+  const limit  = opts.limit ?? 50;
+  const q      = query.trim();
+  if (!q) {
+    // No search text — fall back to the paginated browse (first page only).
+    const { orders } = await listOrders({ limit, fromIso: opts.fromIso, toIso: opts.toIso });
+    return orders;
+  }
 
   // Wrap pattern values in PostgREST's quote syntax so commas (and other
   // reserved chars) in the user's input don't mis-parse the OR filter.
@@ -325,12 +375,15 @@ export async function searchOrders(query: string, limit = 50): Promise<Order[]> 
   if (customerIds.length > 0)    orParts.push(`customer_id.in.(${customerIds.join(',')})`);
   if (orderIdsByItem.length > 0) orParts.push(`id.in.(${orderIdsByItem.join(',')})`);
 
-  const { data } = await sb
+  let ordersQuery = sb
     .from('orders')
     .select('*, customer:customers(id, full_name, customer_number, phone_number)')
     .or(orParts.join(','))
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (opts.fromIso) ordersQuery = ordersQuery.gte('order_date', opts.fromIso);
+  if (opts.toIso)   ordersQuery = ordersQuery.lte('order_date', opts.toIso);
+  const { data } = await ordersQuery;
 
   return (data as Order[]) ?? [];
 }

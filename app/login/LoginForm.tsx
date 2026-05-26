@@ -159,7 +159,7 @@ export default function LoginForm() {
             }} />
             <Image src="/logo.png" alt="Chaudhary Farm" width={148} height={148} priority style={{ objectFit: 'contain', position: 'relative', zIndex: 1 }} />
           </div>
-          <h1 className="font-display" style={{ fontSize: 32, fontWeight: 400, margin: 0, letterSpacing: '-0.02em' }}>
+          <h1 className="font-display" style={{ fontSize: 32, margin: 0 }}>
             Chaudhary Farm
           </h1>
           <p style={{ fontSize: 13, color: 'var(--ink-muted)', marginTop: 6, letterSpacing: '0.02em' }}>
@@ -394,7 +394,7 @@ export default function LoginForm() {
           <div className="chick-fly" style={{
             position: 'absolute', top: '50%', left: 0,
             color: 'var(--brand)',
-            filter: 'drop-shadow(0 6px 12px rgba(22,19,17,0.18))',
+            filter: 'drop-shadow(0 6px 12px rgba(15,23,42,0.18))',
           }}>
             <Bird size={120} strokeWidth={1.6} />
           </div>

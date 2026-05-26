@@ -19,7 +19,7 @@ function fromProduct(p: Product): DraftRow {
     product: p,
     price: Number(p.default_price).toFixed(2),
     fee: Number(p.service_fee).toFixed(2),
-    accent: p.accent_color || '#1A1715',
+    accent: p.accent_color || '#0F172A',
   };
 }
 

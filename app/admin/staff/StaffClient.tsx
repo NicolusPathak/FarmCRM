@@ -143,7 +143,7 @@ export default function StaffClient({ initial, currentUserId, managedRole }: Pro
     <div className="split-grid split-grid--wide">
       {/* New PIN card */}
       <div className="card">
-        <h2 style={{ fontFamily: 'var(--font-dm-serif), serif', fontSize: 18, margin: 0, marginBottom: 16 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.015em', margin: 0, marginBottom: 16 }}>
           Create {managedRole === 'admin' ? 'an admin' : 'a staff'} PIN
         </h2>
         <form onSubmit={add} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

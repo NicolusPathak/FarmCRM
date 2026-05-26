@@ -5,51 +5,56 @@
 
 /* ─────────────────────────────────────────────────────────────
    Chaudhary Farm — Design tokens
-   Charcoal + cream POS palette. Red is for destructive only.
+   Square-inspired light palette: cool grays + blue primary.
+   Brand red kept for logo + destructive only.
    ───────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces */
-  --bg:           #FAF8F4;
+  /* Surfaces — cool light grays */
+  --bg:           #F7F8FA;
   --surface:      #FFFFFF;
-  --surface-2:    #F3EFE8;
-  --surface-3:    #E9E3D8;
-  --border:       #E2DCCF;
-  --border-soft:  #EFEAE0;
+  --surface-2:    #F1F3F6;
+  --surface-3:    #E4E7EC;
+  --border:       #E3E6EB;
+  --border-soft:  #EDEFF3;
 
-  /* Ink */
-  --ink:          #1A1715;
-  --ink-2:        #4A433C;
-  --ink-muted:    #837A6F;
-  --ink-faint:    #B4ABA0;
+  /* Ink — slate scale */
+  --ink:          #0F172A;
+  --ink-2:        #475569;
+  --ink-muted:    #64748B;
+  --ink-faint:    #94A3B8;
 
-  /* Sidebar — deep warm charcoal */
-  --sidebar-bg:        #161311;
-  --sidebar-bg-soft:   #221E1A;
-  --sidebar-text:      #EDE6D8;
-  --sidebar-text-mute: #8A8275;
-  --sidebar-active:    #2A2521;
+  /* Sidebar — light, matches Square's nav */
+  --sidebar-bg:        #FFFFFF;
+  --sidebar-bg-soft:   #F1F3F6;
+  --sidebar-text:      #0F172A;
+  --sidebar-text-mute: #64748B;
+  --sidebar-active:    rgba(0, 106, 255, 0.08);
 
-  /* Accent (used for primary action) */
-  --accent:        #1A1715;
-  --accent-hover:  #000;
+  /* Cream text for legacy dark surfaces (e.g. customer points-card) */
+  --on-dark:           #EDE6D8;
+  --on-dark-mute:      rgba(237,230,216,0.55);
+
+  /* Accent — Square blue */
+  --accent:        #006AFF;
+  --accent-hover:  #0058D6;
 
   /* Status */
-  --danger:        #B91C1C;
-  --danger-bg:     #FBE9E7;
-  --danger-soft:   #F4D0CC;
-  --success:       #15803D;
-  --success-bg:    #E6F3EC;
-  --warning:       #B45309;
-  --warning-bg:    #FCEFDB;
+  --danger:        #DC2626;
+  --danger-bg:     #FEF2F2;
+  --danger-soft:   #FECACA;
+  --success:       #16A34A;
+  --success-bg:    #ECFDF5;
+  --warning:       #D97706;
+  --warning-bg:    #FEF3C7;
 
   /* Brand red, kept for the logo accent and "void" treatment */
   --brand:         #B0322B;
   --brand-soft:    #F6D7D3;
 
-  /* Elevation */
-  --shadow-sm:  0 1px 2px rgba(22,19,17,0.04);
-  --shadow-md:  0 4px 16px rgba(22,19,17,0.06);
-  --shadow-lg:  0 12px 40px rgba(22,19,17,0.10);
+  /* Elevation — softer, Square-like */
+  --shadow-sm:  0 1px 2px rgba(15,23,42,0.04);
+  --shadow-md:  0 4px 16px rgba(15,23,42,0.06);
+  --shadow-lg:  0 12px 40px rgba(15,23,42,0.10);
 
   /* Radii */
   --r-sm: 8px;
@@ -141,7 +146,10 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
 
 /* ─── Typography helpers ─────────────────────────────────────── */
-.font-display { font-family: var(--font-dm-serif), serif; letter-spacing: -0.01em; }
+/* "Display" treatment for big numbers and headlines. Same Inter face as
+   the body, but heavier weight + tighter tracking so it still reads as a
+   distinct visual register against body copy. */
+.font-display { font-weight: 600; letter-spacing: -0.02em; }
 
 h1, h2, h3 { color: var(--ink); letter-spacing: -0.015em; line-height: var(--leading-tight); }
 h1 { font-size: var(--text-3xl); }
@@ -234,9 +242,9 @@ h3 { font-size: var(--text-lg); }
   line-height: var(--leading-snug);
 }
 .input-field:focus {
-  border-color: var(--ink);
+  border-color: var(--accent);
   background: var(--surface);
-  box-shadow: 0 0 0 4px rgba(26,23,21,0.08);
+  box-shadow: 0 0 0 4px rgba(0,106,255,0.15);
 }
 .input-field::placeholder { color: var(--ink-faint); }
 .input-field:disabled { background: var(--surface-2); color: var(--ink-muted); }
@@ -317,7 +325,7 @@ h3 { font-size: var(--text-lg); }
   flex-direction: column;
   z-index: 40;
   background: var(--sidebar-bg);
-  border-right: 1px solid #000;
+  border-right: 1px solid var(--border);
   box-shadow: 0 20px 50px rgba(0,0,0,0.4);
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -460,8 +468,8 @@ a, button, [role="button"],
   min-width: 0;
 }
 .search-bar:focus-within {
-  border-color: var(--ink);
-  box-shadow: 0 0 0 4px rgba(26,23,21,0.07);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0,106,255,0.12);
 }
 .search-bar input {
   flex: 1; min-width: 0;
@@ -476,13 +484,13 @@ a, button, [role="button"],
 /* ─── Points card (customer profile loyalty card) ───────────── */
 .points-card {
   background:
-    radial-gradient(120% 80% at 100% 0%, rgba(176,50,43,0.18), transparent 60%),
-    linear-gradient(160deg, #1F1A17 0%, #161311 100%);
+    radial-gradient(140% 90% at 100% 0%, rgba(0, 106, 255, 0.06), transparent 60%),
+    var(--surface);
   border-radius: var(--r-lg);
   padding: 22px;
-  color: var(--sidebar-text);
-  border: 1px solid #000;
-  box-shadow: var(--shadow-md);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ─── Stat card ─────────────────────────────────────────────── */
@@ -499,7 +507,7 @@ a, button, [role="button"],
   background: var(--surface-2); color: var(--ink);
 }
 .stat-label { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); }
-.stat-value { font-size: var(--text-2xl); font-weight: 500; line-height: 1.1; margin-top: 4px; font-family: var(--font-dm-serif), serif; letter-spacing: -0.01em; }
+.stat-value { font-size: var(--text-2xl); font-weight: 600; line-height: 1.1; margin-top: 4px; letter-spacing: -0.02em; }
 
 /* ─── Subtle dot grid for splash backgrounds ───────────────── */
 .dot-grid {
@@ -542,7 +550,7 @@ a, button, [role="button"],
     flex-direction: column;
     z-index: 40;
     background: var(--sidebar-bg);
-    border-right: 1px solid #000;
+    border-right: 1px solid var(--border);
     animation: none;   /* persistent, not animating in */
     box-shadow: none;
   }

@@ -74,7 +74,7 @@ export default function DashboardClient({ stats, role }: Props) {
           <Image src="/logo.png" alt="Chaudhary Farm" width={56} height={56} priority style={{ objectFit: 'contain' }} />
         </div>
         <div>
-          <h1 className="font-display" style={{ fontSize: 32, fontWeight: 400, margin: 0, letterSpacing: '-0.02em' }}>
+          <h1 className="font-display" style={{ fontSize: 32, margin: 0 }}>
             Chaudhary Farm
           </h1>
           <p style={{ fontSize: 14, color: 'var(--ink-muted)', marginTop: 4 }}>
@@ -153,7 +153,7 @@ export default function DashboardClient({ stats, role }: Props) {
                       <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.full_name}</div>
                       <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 1 }}>{c.customer_number} · {c.phone_number ?? 'No phone'}</div>
                     </div>
-                    <span className="badge badge-neutral">{c.points_balance} pts</span>
+                    <span className="badge badge-neutral" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{c.points_balance.toLocaleString()} pts</span>
                   </button>
                 ))}
               </>
@@ -202,7 +202,7 @@ export default function DashboardClient({ stats, role }: Props) {
                 <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.full_name}</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 1 }}>{c.customer_number}</div>
               </div>
-              <span className="badge badge-neutral">{c.points_balance} pts</span>
+              <span className="badge badge-neutral" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{c.points_balance.toLocaleString()} pts</span>
             </PanelRow>
           ))}
         </Panel>
@@ -270,7 +270,7 @@ function Glance({ label, value, n }: { label: string; value: number; n: number }
       <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-muted)' }}>
         {label}
       </div>
-      <div className="font-display" style={{ fontSize: 24, fontWeight: 400, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+      <div className="font-display" style={{ fontSize: 24, fontVariantNumeric: 'tabular-nums' }}>
         {formatCurrency(value)}
       </div>
       <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>

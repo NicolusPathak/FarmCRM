@@ -318,14 +318,14 @@ export default function InvoiceView({ order: init, role }: Props) {
                 <Image src="/logo.png" alt="Chaudhary Farm" width={52} height={52} style={{ objectFit: 'contain' }} />
               </div>
               <div>
-                <div className="font-display" style={{ fontWeight: 400, fontSize: 19 }}>Chaudhary Farm</div>
+                <div className="font-display" style={{ fontSize: 19 }}>Chaudhary Farm</div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginTop: 2 }}>Haslet, TX</div>
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div className="label">Invoice</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                <div className="font-display" style={{ fontSize: 24, fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>{order.order_number}</div>
+                <div className="font-display" style={{ fontSize: 24, fontVariantNumeric: 'tabular-nums' }}>{order.order_number}</div>
                 {isVoid && <span className="badge badge-danger" style={{ letterSpacing: '0.08em' }}>VOID</span>}
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginTop: 2 }}>{formatDateTime(order.order_date)}</div>
@@ -522,7 +522,7 @@ export default function InvoiceView({ order: init, role }: Props) {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                     <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
-                    <span className="font-display" style={{ fontSize: 22, fontWeight: 400 }}>{formatCurrency(draftSubtotal)}</span>
+                    <span className="font-display" style={{ fontSize: 22 }}>{formatCurrency(draftSubtotal)}</span>
                   </div>
                 </div>
               </div>
@@ -581,7 +581,7 @@ export default function InvoiceView({ order: init, role }: Props) {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
-                  <span className="font-display" style={{ fontSize: 26, fontWeight: 400, color: isVoid ? 'var(--ink-muted)' : 'var(--ink)', textDecoration: isVoid ? 'line-through' : 'none' }}>{formatCurrency(order.total)}</span>
+                  <span className="font-display" style={{ fontSize: 26, color: isVoid ? 'var(--ink-muted)' : 'var(--ink)', textDecoration: isVoid ? 'line-through' : 'none' }}>{formatCurrency(order.total)}</span>
                 </div>
               </div>
             </div>

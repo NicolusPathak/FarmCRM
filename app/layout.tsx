@@ -1,19 +1,16 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
-import { DM_Sans, DM_Serif_Display } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import { GlobalLoadingProvider } from '@/components/ui/GlobalLoading';
 
-const dmSans = DM_Sans({
+// Inter is the closest free match to Square's Aktiv-Grotesk-style sans.
+// Keeping the --font-dm-sans variable name so we don't have to touch every
+// inline font-family in the codebase — the variable now points at Inter.
+const inter = Inter({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
   variable: '--font-dm-sans',
-});
-
-const dmSerifDisplay = DM_Serif_Display({
-  subsets: ['latin'],
-  weight: '400',
-  variable: '--font-dm-serif',
 });
 
 export const metadata: Metadata = {
@@ -34,12 +31,12 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#1A1715',
+  themeColor: '#0F172A',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${dmSerifDisplay.variable}`}>
+    <html lang="en" className={inter.variable}>
       <body>
         <GlobalLoadingProvider>
           {children}
@@ -49,13 +46,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           toastOptions={{
             style: {
               fontFamily: "var(--font-dm-sans), sans-serif",
-              background: '#1A1208',
-              color: '#F5ECD7',
+              background: '#0F172A',
+              color: '#F8FAFC',
               borderRadius: '12px',
               padding: '12px 16px',
+              fontSize: '14px',
+              boxShadow: '0 10px 30px rgba(15, 23, 42, 0.25)',
             },
-            success: { iconTheme: { primary: '#10b981', secondary: '#F5ECD7' } },
-            error: { iconTheme: { primary: '#C0392B', secondary: '#F5ECD7' } },
+            success: { iconTheme: { primary: '#16A34A', secondary: '#F8FAFC' } },
+            error:   { iconTheme: { primary: '#DC2626', secondary: '#F8FAFC' } },
           }}
         />
       </body>
