@@ -1,9 +1,10 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useLoadingRouter, useLoadingAction } from '@/components/ui/GlobalLoading';
 import {
   Search, X, Save, Sparkles, Loader2, ChevronRight,
-  Minus, Plus, Lock, Bird, Beef, Egg,
+  Minus, Plus, Lock, Bird, Beef, Egg, UserPlus,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { Customer, NewOrderItemForm, PaymentMethod, ProductGroup, Product } from '@/types';
@@ -53,6 +54,9 @@ function CustomerPicker({ value, onChange }: { value: Customer | null; onChange:
   const [results, setResults] = useState<Customer[]>([]);
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false); // true once a query has resolved — gates the "no matches" state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalSeed, setModalSeed] = useState('');
   const ref      = useRef<HTMLDivElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -63,15 +67,16 @@ function CustomerPicker({ value, onChange }: { value: Customer | null; onChange:
   }, []);
 
   const search = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); setOpen(false); return; }
+    if (!q.trim()) { setResults([]); setOpen(false); setSearched(false); return; }
     setLoading(true);
     try {
       const res = await fetch(`/api/customers/search?q=${encodeURIComponent(q)}`);
-      if (!res.ok) { setResults([]); return; }
+      if (!res.ok) { setResults([]); setSearched(true); setOpen(true); return; }
       const d = await res.json();
       setResults(d.customers ?? []);
+      setSearched(true);
       setOpen(true);
-    } catch { setResults([]); }
+    } catch { setResults([]); setSearched(true); }
     finally { setLoading(false); }
   }, []);
 
@@ -80,6 +85,14 @@ function CustomerPicker({ value, onChange }: { value: Customer | null; onChange:
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => search(v), 240);
   };
+
+  function openCreateModal(seed: string) {
+    // Best-effort: if the user has typed a digit-heavy string treat it as
+    // a phone number, otherwise as a name. Either way they can edit.
+    setModalSeed(seed);
+    setModalOpen(true);
+    setOpen(false);
+  }
 
   if (value) return (
     <div className="cust-chip">
@@ -98,14 +111,25 @@ function CustomerPicker({ value, onChange }: { value: Customer | null; onChange:
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <div className="search-bar">
-        {loading
-          ? <Loader2 size={16} className="spin" style={{ color: 'var(--ink-muted)' }} />
-          : <Search size={16} style={{ color: 'var(--ink-muted)', flexShrink: 0 }} />}
-        <input value={query} onChange={onInput} onFocus={() => { if (results.length) setOpen(true); }}
-          placeholder="Search customer by name, phone, or number" />
+      <div className="cust-picker-row">
+        <div className="search-bar" style={{ flex: 1 }}>
+          {loading
+            ? <Loader2 size={16} className="spin" style={{ color: 'var(--ink-muted)' }} />
+            : <Search size={16} style={{ color: 'var(--ink-muted)', flexShrink: 0 }} />}
+          <input value={query} onChange={onInput} onFocus={() => { if (results.length || (searched && query.trim())) setOpen(true); }}
+            placeholder="Search customer by name, phone, or number" />
+        </div>
+        <button
+          type="button"
+          className="btn-secondary cust-picker-new"
+          onClick={() => openCreateModal(query.trim())}
+          aria-label="Create new customer"
+        >
+          <UserPlus size={15} /> <span className="cust-picker-new__label">New</span>
+        </button>
       </div>
-      {open && results.length > 0 && (
+
+      {open && (results.length > 0 || (searched && query.trim())) && (
         <div className="cust-results">
           {results.slice(0, 8).map((c) => (
             <button key={c.id} type="button" onClick={() => { onChange(c); setQuery(''); setOpen(false); }}
@@ -118,9 +142,181 @@ function CustomerPicker({ value, onChange }: { value: Customer | null; onChange:
               <span className="badge badge-neutral">{c.points_balance}</span>
             </button>
           ))}
+          {searched && results.length === 0 && (
+            <div className="cust-empty">
+              <div style={{ fontSize: 13, color: 'var(--ink-muted)' }}>
+                No matches for &ldquo;{query}&rdquo;
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            className="cust-create-row"
+            onClick={() => openCreateModal(query.trim())}
+          >
+            <UserPlus size={16} strokeWidth={2} />
+            <span>Create new customer{query.trim() && ` — "${query.trim()}"`}</span>
+          </button>
         </div>
       )}
+
+      {modalOpen && (
+        <NewCustomerModal
+          seed={modalSeed}
+          onClose={() => setModalOpen(false)}
+          onCreated={(c) => { onChange(c); setModalOpen(false); setQuery(''); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Inline "new customer" modal — minimal version of the standalone
+// /customers/new page. Save → POST → call onCreated with the new
+// customer so the order picker switches to them in one step.
+// ─────────────────────────────────────────────────────────────
+
+function NewCustomerModal({
+  seed,
+  onClose,
+  onCreated,
+}: {
+  seed: string;
+  onClose: () => void;
+  onCreated: (c: Customer) => void;
+}) {
+  // If the seed is mostly digits, treat it as a phone number; otherwise
+  // as a name. Cheap heuristic; the user can fix either way before saving.
+  const digitsOnly = seed.replace(/\D/g, '').length >= 3 && seed.replace(/\D/g, '').length === seed.replace(/[\s()+\-]/g, '').length;
+  const [form, setForm] = useState({
+    full_name:    digitsOnly ? '' : seed,
+    phone_number: digitsOnly ? seed : '',
+    street: '', city: '', zip_code: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+  const [mounted, setMounted] = useState(false);
+  const firstFieldRef = useRef<HTMLInputElement | null>(null);
+
+  // Mount flag for the portal: createPortal can't run during SSR, and
+  // even on the client we wait one render to make sure document.body is
+  // available before mounting into it.
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { firstFieldRef.current?.focus(); }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, saving]);
+
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.full_name.trim()) { setError('Full name is required.'); return; }
+    if (!form.phone_number.trim()) { setError('Phone number is required.'); return; }
+    if (form.phone_number.replace(/\D/g, '').length < 7) {
+      setError('Phone number looks too short — include the area code.');
+      return;
+    }
+    setSaving(true); setError('');
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? 'Could not create customer.');
+      toast.success(`Customer ${d.customer_number} created`);
+      onCreated(d as Customer);
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not create customer.');
+      setSaving(false);
+    }
+  }
+
+  if (!mounted) return null;
+
+  // Portal to document.body so the modal's <form> is NOT nested inside
+  // the outer order <form> — that's an invalid HTML structure that React
+  // surfaces as a hydration error.
+  return createPortal(
+    <div className="ncm-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+      <div className="ncm-card" role="dialog" aria-modal="true" aria-label="Create new customer">
+        <div className="ncm-head">
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.01em' }}>New customer</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginTop: 2 }}>Add now and continue with this order.</div>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="btn-ghost" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label className="label">Full name <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <input
+              ref={firstFieldRef}
+              className="input-field"
+              placeholder="e.g. Asha Verma"
+              value={form.full_name}
+              onChange={(e) => set('full_name', e.target.value)}
+              required
+              disabled={saving}
+            />
+          </div>
+          <div>
+            <label className="label">Phone number <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <input
+              className="input-field"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="(817) 555-0101"
+              value={form.phone_number}
+              onChange={(e) => set('phone_number', e.target.value)}
+              required
+              disabled={saving}
+            />
+          </div>
+          <div style={{ height: 1, background: 'var(--border-soft)', margin: '4px 0' }} />
+          <p className="label" style={{ marginBottom: 0 }}>Address (optional)</p>
+          <div>
+            <label className="label">Street</label>
+            <input className="input-field" placeholder="412 Oak Hollow Dr" value={form.street} onChange={(e) => set('street', e.target.value)} disabled={saving} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 12 }}>
+            <div>
+              <label className="label">City</label>
+              <input className="input-field" placeholder="Haslet" value={form.city} onChange={(e) => set('city', e.target.value)} disabled={saving} />
+            </div>
+            <div>
+              <label className="label">ZIP</label>
+              <input className="input-field" placeholder="76052" value={form.zip_code} onChange={(e) => set('zip_code', e.target.value)} disabled={saving} />
+            </div>
+          </div>
+          {error && (
+            <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 500, border: '1px solid var(--danger-soft)' }}>
+              {error}
+            </div>
+          )}
+          <div className="ncm-actions">
+            <button type="button" onClick={onClose} disabled={saving} className="btn-secondary">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">
+              {saving ? <><Loader2 size={14} className="spin" /> Saving…</> : <><UserPlus size={14} /> Save & use</>}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -807,6 +1003,70 @@ export default function NewOrderForm({ preselectedCustomer, productGroups, isAdm
           text-align: left;
         }
         :global(.cust-result:hover) { background: var(--surface-2); }
+
+        :global(.cust-picker-row) {
+          display: flex; align-items: stretch; gap: 8px;
+          min-width: 0;
+        }
+        :global(.cust-picker-new) {
+          flex-shrink: 0;
+          padding: 0 14px;
+          min-height: 44px;
+        }
+        @media (max-width: 380px) {
+          :global(.cust-picker-new) { padding: 0 10px; }
+          :global(.cust-picker-new__label) { display: none; }
+        }
+        :global(.cust-empty) {
+          padding: 14px 14px 6px;
+        }
+        :global(.cust-create-row) {
+          display: flex; align-items: center; gap: 10px;
+          width: 100%; padding: 12px 14px;
+          background: var(--surface-2);
+          border: none; border-top: 1px solid var(--border-soft);
+          cursor: pointer; font-family: inherit;
+          font-size: 13.5px; font-weight: 600;
+          color: var(--accent);
+          text-align: left;
+          transition: background 100ms;
+        }
+        :global(.cust-create-row:hover) { background: rgba(0,106,255,0.06); }
+
+        /* ── New-customer modal ─────────────────────────────────── */
+        :global(.ncm-backdrop) {
+          position: fixed; inset: 0; z-index: 80;
+          background: rgba(15, 23, 42, 0.45);
+          backdrop-filter: blur(2px);
+          display: flex; align-items: center; justify-content: center;
+          padding: 16px;
+          animation: ncm-fade 140ms ease-out;
+        }
+        :global(.ncm-card) {
+          width: 100%; max-width: 480px;
+          max-height: calc(100dvh - 32px);
+          overflow-y: auto;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          box-shadow: var(--shadow-lg);
+          padding: 20px 22px 22px;
+          animation: ncm-pop 160ms cubic-bezier(.4, 0, .2, 1);
+        }
+        :global(.ncm-head) {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 12px; margin-bottom: 16px;
+        }
+        :global(.ncm-actions) {
+          display: flex; gap: 10px; justify-content: flex-end;
+          padding-top: 4px;
+        }
+        @media (max-width: 480px) {
+          :global(.ncm-actions) { flex-direction: column-reverse; }
+          :global(.ncm-actions button) { width: 100%; }
+        }
+        @keyframes ncm-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes ncm-pop  { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 
         /* ── Payment pills ──────────────────────────────────────── */
         .payment-pills {
