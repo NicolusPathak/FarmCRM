@@ -1,7 +1,11 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLoadingRouter, useLoadingAction } from '@/components/ui/GlobalLoading';
-import { Search, X, Save, Sparkles, Loader2, ChevronLeft, Minus, Plus, Lock } from 'lucide-react';
+import {
+  Search, X, Save, Sparkles, Loader2, ChevronRight,
+  Minus, Plus, Lock, Bird, Beef, Egg,
+} from 'lucide-react';
+import type { ComponentType } from 'react';
 import type { Customer, NewOrderItemForm, PaymentMethod, ProductGroup, Product } from '@/types';
 import { PAYMENT_METHODS, PAYMENT_LABEL } from '@/types';
 import { formatCurrency } from '@/lib/utils';
@@ -121,17 +125,18 @@ function CustomerPicker({ value, onChange }: { value: Customer | null; onChange:
 }
 
 // ─────────────────────────────────────────────────────────────
-// Quantity stepper (used inside dark cards — high-contrast variant)
+// Quantity stepper — used inside the editor modal. Light styling
+// (sits on a white card, not a colored hero panel anymore).
 // ─────────────────────────────────────────────────────────────
 
-function DarkStepper({
+function Stepper({
   value, min = 1, step = 1, onChange,
 }: { value: number; min?: number; step?: number; onChange: (v: number) => void }) {
   const dec = () => onChange(Math.max(min, value - step));
   const inc = () => onChange(value + step);
   return (
-    <div className="dark-stepper">
-      <button type="button" onClick={dec} aria-label="decrease"><Minus size={16} strokeWidth={2.4} /></button>
+    <div className="stepper">
+      <button type="button" onClick={dec} aria-label="decrease"><Minus size={16} strokeWidth={2.2} /></button>
       <input
         type="number" min={min} step={step} inputMode="numeric"
         value={value}
@@ -140,7 +145,7 @@ function DarkStepper({
           onChange(Number.isFinite(n) ? Math.max(min, n) : min);
         }}
       />
-      <button type="button" onClick={inc} aria-label="increase"><Plus size={16} strokeWidth={2.4} /></button>
+      <button type="button" onClick={inc} aria-label="increase"><Plus size={16} strokeWidth={2.2} /></button>
     </div>
   );
 }
@@ -149,17 +154,28 @@ function DarkStepper({
 // Top-level catalog tile (browse mode)
 // ─────────────────────────────────────────────────────────────
 
-function CatalogTile({ group, onClick }: { group: ProductGroup; onClick: () => void }) {
-  const eyebrow = (() => {
-    switch (group.code) {
-      case 'poultry':     return 'Poultry';
-      case 'whole_goat':  return 'Whole goat';
-      case 'retail_goat': return 'Cuts · retail';
-      case 'eggs':        return 'Fresh eggs';
-      default:            return group.label;
-    }
-  })();
+// Map each catalog group to a Lucide icon used as the card's
+// background watermark. We deliberately reuse `Beef` for both goat
+// groups — the difference is conveyed by title + accent stripe, not by
+// inventing a second icon. There's no goat-specific icon in lucide,
+// so the cow icon stands in for "livestock" across both goat cards.
+type CardIcon = ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+const ICON_FOR_GROUP: Record<string, CardIcon> = {
+  poultry:     Bird,
+  whole_goat:  Beef,
+  retail_goat: Beef,
+  eggs:        Egg,
+};
 
+// Catalog card — compact, white background with a faded animal icon
+// as a watermark, and a left-edge accent stripe in the group's color.
+// Replaces the previous full-bleed colored hero tiles. Same data,
+// professional aesthetic, and roughly half the vertical space.
+function CatalogTile({ group, onClick }: { group: ProductGroup; onClick: () => void }) {
+  const Icon: CardIcon = ICON_FOR_GROUP[group.code] ?? Beef;
+
+  // Subline = compact summary so the staffer can verify the right
+  // card without opening it.
   const subline = (() => {
     if (group.products.length === 1) {
       const p = group.products[0];
@@ -177,17 +193,19 @@ function CatalogTile({ group, onClick }: { group: ProductGroup; onClick: () => v
   })();
 
   return (
-    <button type="button" onClick={onClick} className="big-tile" style={tileVars(group.accent_color)}>
-      <div className="big-tile__orb" />
-      <div className="big-tile__sheen" />
-      <div className="big-tile__top">
-        <span className="big-tile__eyebrow">{eyebrow}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="cat-card"
+      style={tileVars(group.accent_color)}
+    >
+      <span className="cat-card__stripe" aria-hidden />
+      <Icon className="cat-card__icon" size={120} strokeWidth={1.4} />
+      <div className="cat-card__body">
+        <h2 className="cat-card__title font-display">{group.label}</h2>
+        <div className="cat-card__sub">{subline}</div>
       </div>
-      <div className="big-tile__bottom">
-        <h2 className="big-tile__title font-display">{group.label}</h2>
-        <div className="big-tile__subline">{subline}</div>
-        <div className="big-tile__cta"><span>Tap to add</span><span className="big-tile__arrow">→</span></div>
-      </div>
+      <ChevronRight className="cat-card__chev" size={20} strokeWidth={2} />
     </button>
   );
 }
@@ -197,83 +215,86 @@ function CatalogTile({ group, onClick }: { group: ProductGroup; onClick: () => v
 // but with the add-to-order controls embedded.
 // ─────────────────────────────────────────────────────────────
 
-// Card for a single 'each' or 'tray' product (Hen / Rooster / Duck / Eggs).
+// ─────────────────────────────────────────────────────────────
+// Editor sub-cards — compact rows shown inside the slide-down modal.
+//
+// No colored backgrounds. Each card is a single white row with a
+// left accent stripe in the product's color, the product name + price
+// on the left, and the input + Add button on the right. Wraps to two
+// lines on narrow phones so nothing gets cramped.
+// ─────────────────────────────────────────────────────────────
+
+// 'each' or 'tray' product (Hen / Rooster / Duck / Eggs).
 function CountCard({ product, onAdd }: { product: Product; onAdd: (lines: NewOrderItemForm[]) => void }) {
   const [qty, setQty] = useState(1);
   const n = Math.max(1, Math.floor(qty) || 1);
   const total = n * Number(product.default_price);
 
   return (
-    <div className="big-tile big-tile--editor" style={tileVars(product.accent_color)}>
-      <div className="big-tile__orb" />
-      <div className="big-tile__sheen" />
-      <div className="big-tile__top">
-        <span className="big-tile__eyebrow">{formatCurrency(product.default_price)} / {unitWord(product.unit)}</span>
+    <div className="ec-card" style={tileVars(product.accent_color)}>
+      <span className="ec-card__stripe" aria-hidden />
+      <div className="ec-card__head">
+        <div className="ec-card__name">{product.name}</div>
+        <div className="ec-card__price">{formatCurrency(product.default_price)} / {unitWord(product.unit)}</div>
       </div>
-      <div className="big-tile__bottom">
-        <h2 className="big-tile__title font-display">{product.name}</h2>
-        <div className="big-tile__controls">
-          <DarkStepper value={n} min={1} onChange={(v) => setQty(Math.floor(v))} />
-          <button
-            type="button"
-            className="big-tile__primary"
-            onClick={() => {
-              onAdd([{ item_name: product.name, quantity: n, unit_price: Number(product.default_price), product_code: product.code }]);
-              setQty(1);
-            }}
-          >
-            <Plus size={14} /> Add · {formatCurrency(total)}
-          </button>
-        </div>
+      <div className="ec-card__controls">
+        <Stepper value={n} min={1} onChange={(v) => setQty(Math.floor(v))} />
+        <button
+          type="button"
+          className="ec-card__add"
+          onClick={() => {
+            onAdd([{ item_name: product.name, quantity: n, unit_price: Number(product.default_price), product_code: product.code }]);
+            setQty(1);
+          }}
+        >
+          <Plus size={14} /> Add · {formatCurrency(total)}
+        </button>
       </div>
     </div>
   );
 }
 
-// Card for a 'lb' product (Retail goat — with skin / without skin).
+// 'lb' product (Retail goat — with skin / without skin).
 function WeightCard({ product, onAdd }: { product: Product; onAdd: (lines: NewOrderItemForm[]) => void }) {
   const [weight, setWeight] = useState('');
   const w = Math.max(0, Number(weight) || 0);
   const total = w * Number(product.default_price);
 
   return (
-    <div className="big-tile big-tile--editor" style={tileVars(product.accent_color)}>
-      <div className="big-tile__orb" />
-      <div className="big-tile__sheen" />
-      <div className="big-tile__top">
-        <span className="big-tile__eyebrow">{formatCurrency(product.default_price)} / lb</span>
+    <div className="ec-card" style={tileVars(product.accent_color)}>
+      <span className="ec-card__stripe" aria-hidden />
+      <div className="ec-card__head">
+        <div className="ec-card__name">{product.name}</div>
+        <div className="ec-card__price">{formatCurrency(product.default_price)} / lb</div>
       </div>
-      <div className="big-tile__bottom">
-        <h2 className="big-tile__title font-display">{product.name}</h2>
-        <div className="big-tile__controls">
-          <label className="dark-field" style={{ flex: 1 }}>
-            <span>Weight (lb)</span>
-            <input
-              type="number" min="0" step="0.01" inputMode="decimal"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              placeholder="0.00"
-            />
-          </label>
-          <button
-            type="button"
-            className="big-tile__primary"
-            disabled={!(w > 0)}
-            onClick={() => {
-              onAdd([{ item_name: product.name, quantity: w, unit_price: Number(product.default_price), product_code: product.code }]);
-              setWeight('');
-            }}
-          >
-            <Plus size={14} /> Add · {formatCurrency(total)}
-          </button>
-        </div>
+      <div className="ec-card__controls">
+        <label className="ec-card__field">
+          <span>Weight (lb)</span>
+          <input
+            type="number" min="0" step="0.01" inputMode="decimal"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="0.00"
+          />
+        </label>
+        <button
+          type="button"
+          className="ec-card__add"
+          disabled={!(w > 0)}
+          onClick={() => {
+            onAdd([{ item_name: product.name, quantity: w, unit_price: Number(product.default_price), product_code: product.code }]);
+            setWeight('');
+          }}
+        >
+          <Plus size={14} /> Add · {formatCurrency(total)}
+        </button>
       </div>
     </div>
   );
 }
 
-// Whole goat — single product but takes weight AND number of goats, plus
-// a flat per-goat service fee. Lives in one big card.
+// Whole goat — single product, two inputs (total weight + goat count),
+// plus a flat service fee.
 function WholeGoatCard({ product, onAdd }: { product: Product; onAdd: (lines: NewOrderItemForm[]) => void }) {
   const [weight, setWeight] = useState('');
   const [count,  setCount]  = useState(1);
@@ -285,70 +306,112 @@ function WholeGoatCard({ product, onAdd }: { product: Product; onAdd: (lines: Ne
   const canAdd = w > 0 && c > 0;
 
   return (
-    <div className="big-tile big-tile--editor big-tile--wide" style={tileVars(product.accent_color)}>
-      <div className="big-tile__orb" />
-      <div className="big-tile__sheen" />
-      <div className="big-tile__top">
-        <span className="big-tile__eyebrow">
+    <div className="ec-card ec-card--stack" style={tileVars(product.accent_color)}>
+      <span className="ec-card__stripe" aria-hidden />
+      <div className="ec-card__head">
+        <div className="ec-card__name">{product.name}</div>
+        <div className="ec-card__price">
           {formatCurrency(product.default_price)} / lb
-          {Number(product.service_fee) > 0 && <>  ·  + {formatCurrency(product.service_fee)} service fee / goat</>}
-        </span>
-      </div>
-      <div className="big-tile__bottom">
-        <h2 className="big-tile__title font-display">{product.name}</h2>
-        <div className="big-tile__controls big-tile__controls--stack">
-          <div className="big-tile__row">
-            <label className="dark-field" style={{ flex: 1 }}>
-              <span>Total weight (lb)</span>
-              <input
-                type="number" min="0" step="0.01" inputMode="decimal"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="0.00"
-              />
-            </label>
-            <div className="dark-field">
-              <span>Goats</span>
-              <DarkStepper value={c} min={1} onChange={(v) => setCount(Math.floor(v))} />
-            </div>
-          </div>
-          <div className="big-tile__breakdown">
-            <span>Meat {formatCurrency(meat)}</span>
-            {Number(product.service_fee) > 0 && <span>Service fee {formatCurrency(fee)}</span>}
-          </div>
-          <button
-            type="button"
-            className="big-tile__primary big-tile__primary--full"
-            disabled={!canAdd}
-            onClick={() => {
-              const lines: NewOrderItemForm[] = [
-                { item_name: product.name, quantity: w, unit_price: Number(product.default_price), product_code: product.code },
-              ];
-              if (Number(product.service_fee) > 0) {
-                lines.push({
-                  item_name: `${product.name} service fee`,
-                  quantity: c,
-                  unit_price: Number(product.service_fee),
-                  product_code: `service_fee:${product.code}`,
-                });
-              }
-              onAdd(lines);
-              setWeight(''); setCount(1);
-            }}
-          >
-            <Plus size={14} /> Add to order · {formatCurrency(total)}
-          </button>
+          {Number(product.service_fee) > 0 && <>  ·  + {formatCurrency(product.service_fee)} fee / goat</>}
         </div>
       </div>
+      <div className="ec-card__grid">
+        <label className="ec-card__field">
+          <span>Total weight (lb)</span>
+          <input
+            type="number" min="0" step="0.01" inputMode="decimal"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="0.00"
+          />
+        </label>
+        <div className="ec-card__field">
+          <span>Goats</span>
+          <Stepper value={c} min={1} onChange={(v) => setCount(Math.floor(v))} />
+        </div>
+      </div>
+      <div className="ec-card__breakdown">
+        <span>Meat <strong>{formatCurrency(meat)}</strong></span>
+        {Number(product.service_fee) > 0 && <span>Service fee <strong>{formatCurrency(fee)}</strong></span>}
+      </div>
+      <button
+        type="button"
+        className="ec-card__add ec-card__add--full"
+        disabled={!canAdd}
+        onClick={() => {
+          const lines: NewOrderItemForm[] = [
+            { item_name: product.name, quantity: w, unit_price: Number(product.default_price), product_code: product.code },
+          ];
+          if (Number(product.service_fee) > 0) {
+            lines.push({
+              item_name: `${product.name} service fee`,
+              quantity: c,
+              unit_price: Number(product.service_fee),
+              product_code: `service_fee:${product.code}`,
+            });
+          }
+          onAdd(lines);
+          setWeight(''); setCount(1);
+        }}
+      >
+        <Plus size={14} /> Add to order · {formatCurrency(total)}
+      </button>
     </div>
   );
 }
 
-// Dispatcher — picks the right big card per product.
-function bigCardFor(product: Product, onAdd: (lines: NewOrderItemForm[]) => void) {
+// Dispatcher — picks the right editor card per product.
+function editorCardFor(product: Product, onAdd: (lines: NewOrderItemForm[]) => void) {
   if (product.code === 'whole_goat')   return <WholeGoatCard key={product.id} product={product} onAdd={onAdd} />;
   if (product.unit === 'lb')           return <WeightCard    key={product.id} product={product} onAdd={onAdd} />;
   return <CountCard key={product.id} product={product} onAdd={onAdd} />;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Slide-down modal that hosts the editor for the active group.
+// Backdrop click + ESC + the modal's close button all dismiss it;
+// adding an item also dismisses it via the form's addLines() handler.
+// ─────────────────────────────────────────────────────────────
+
+function GroupModal({
+  group, onAdd, onClose,
+}: { group: ProductGroup; onAdd: (lines: NewOrderItemForm[]) => void; onClose: () => void }) {
+  // ESC to close; lock body scroll while open so the page underneath
+  // doesn't drift while the user is interacting with the modal.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="gm-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div
+        className="gm-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={tileVars(group.accent_color)}
+      >
+        <header className="gm-modal__head">
+          <span className="gm-modal__accent" aria-hidden />
+          <div className="gm-modal__title-wrap">
+            <div className="gm-modal__eyebrow">Adding from</div>
+            <h2 className="gm-modal__title font-display">{group.label}</h2>
+          </div>
+          <button type="button" className="gm-modal__close" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={2.2} />
+          </button>
+        </header>
+        <div className="gm-modal__body">
+          {group.products.map((p) => editorCardFor(p, onAdd))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -451,7 +514,6 @@ export default function NewOrderForm({ preselectedCustomer, productGroups, isAdm
   }
 
   const active = activeGroup ? productGroups.find((g) => g.code === activeGroup) ?? null : null;
-  const editorCols = active?.products.length ?? 0;
 
   return (
     <form onSubmit={submit}>
@@ -480,13 +542,16 @@ export default function NewOrderForm({ preselectedCustomer, productGroups, isAdm
           </div>
         </section>
 
-        {/* ───── Catalog — the primary focus ───── */}
+        {/* ───── Catalog — the primary focus ─────
+            The catalog grid is ALWAYS rendered. Tapping a card opens
+            the editor as a slide-down modal (rendered below the
+            page-stack) instead of swapping this content out. */}
         <section className="catalog-area">
           {productGroups.length === 0 ? (
             <div className="card empty-card">
               No products in the catalog yet. An admin can add them under <strong>Admin → Products</strong>.
             </div>
-          ) : !active ? (
+          ) : (
             <>
               <div className="catalog-area__head">
                 <h1 className="catalog-area__title font-display">Choose a product</h1>
@@ -496,19 +561,6 @@ export default function NewOrderForm({ preselectedCustomer, productGroups, isAdm
                 {productGroups.map((g) => (
                   <CatalogTile key={g.code} group={g} onClick={() => setActiveGroup(g.code)} />
                 ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="catalog-area__head catalog-area__head--editor">
-                <button type="button" className="back-pill" onClick={() => setActiveGroup(null)}>
-                  <ChevronLeft size={16} /> All products
-                </button>
-                <h1 className="catalog-area__title font-display">{active.label}</h1>
-                <span className="catalog-area__hint">{editorCols === 1 ? 'One option' : `${editorCols} options · pick one or more`}</span>
-              </div>
-              <div className={`big-grid big-grid--${editorCols === 1 ? 'one' : editorCols === 2 ? 'two' : editorCols === 3 ? 'three' : 'four'}`}>
-                {active.products.map((p) => bigCardFor(p, addLines))}
               </div>
             </>
           )}
@@ -673,6 +725,17 @@ export default function NewOrderForm({ preselectedCustomer, productGroups, isAdm
         </section>
       </div>
 
+      {/* Slide-down editor modal — only mounted when a category is
+          active. Lives outside .page-stack so the backdrop overlays
+          the entire page. */}
+      {active && (
+        <GroupModal
+          group={active}
+          onAdd={addLines}
+          onClose={() => setActiveGroup(null)}
+        />
+      )}
+
       <style jsx>{`
         .spin { animation: spin 800ms linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -806,209 +869,366 @@ export default function NewOrderForm({ preselectedCustomer, productGroups, isAdm
         .back-pill:hover { background: var(--surface-2); border-color: var(--ink-faint); color: var(--ink); }
 
         /* ── Big grid layouts (4 / 3 / 2 / 1 cards) ─────────────── */
-        :global(.big-grid)         { display: grid; gap: 18px; }
-        :global(.big-grid--four)   { grid-template-columns: repeat(2, 1fr); }
+        :global(.big-grid)         { display: grid; gap: 12px; }
+        /* Top-level catalog: ALWAYS one card per row on mobile so cards
+           never share a row (and stay full-width). Desktop opens to 2-up. */
+        :global(.big-grid--four)   { grid-template-columns: 1fr; }
         :global(.big-grid--three)  { grid-template-columns: repeat(3, 1fr); }
         :global(.big-grid--two)    { grid-template-columns: repeat(2, 1fr); }
         :global(.big-grid--one)    { grid-template-columns: minmax(0, 720px); justify-content: center; }
+        @media (min-width: 768px) {
+          :global(.big-grid--four) { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+        }
 
-        /* ── Big tile (shared by catalog tiles + sub-cards) ─────── */
-        :global(.big-tile) {
+        /* ── Catalog card (top-level tile) ─────────────────────────
+           Compact, white, with an animal icon as a faded watermark on
+           the right and an accent stripe on the left in the group's
+           color. Replaces the previous full-bleed colored hero tile.
+           Mobile = full-width, ~96px tall. Desktop = 2-up, ~120px tall. */
+        :global(.cat-card) {
           position: relative;
           overflow: hidden;
-          border: 2px solid rgba(255,255,255,0.18);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          width: 100%;
+          min-height: 96px;
+          padding: 14px 18px 14px 26px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--r-lg);
           cursor: pointer;
           font-family: inherit;
           text-align: left;
-          color: #fff;
-          min-height: 300px;
-          padding: 24px;
-          border-radius: 24px;
-          display: flex; flex-direction: column;
-          background:
-            radial-gradient(140% 90% at -10% 110%, rgba(0,0,0,0.35), transparent 55%),
-            linear-gradient(180deg, var(--tile-accent) 0%, var(--tile-deep) 100%);
-          box-shadow:
-            0 1px 0 rgba(255,255,255,0.08) inset,
-            0 14px 32px rgba(22,19,17,0.20),
-            0 2px 8px rgba(22,19,17,0.10);
-          transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+          box-shadow: var(--shadow-sm);
+          transition: transform 140ms ease, box-shadow 160ms ease, border-color 140ms ease;
         }
-        :global(button.big-tile:hover) {
-          transform: translateY(-2px);
-          box-shadow:
-            0 1px 0 rgba(255,255,255,0.08) inset,
-            0 22px 44px rgba(22,19,17,0.26),
-            0 3px 10px rgba(22,19,17,0.12);
-          filter: saturate(1.05);
+        :global(.cat-card:hover) {
+          transform: translateY(-1px);
+          border-color: var(--ink-faint);
+          box-shadow: var(--shadow-md);
         }
-        :global(button.big-tile:active) { transform: translateY(0); }
-        :global(button.big-tile:focus-visible) {
-          outline: 3px solid rgba(255,255,255,0.6); outline-offset: 3px;
+        :global(.cat-card:active) { transform: translateY(0); }
+        :global(.cat-card:focus-visible) {
+          outline: 3px solid var(--tile-accent);
+          outline-offset: 2px;
         }
-        :global(.big-tile--editor) { cursor: default; }
-        :global(.big-tile--editor:hover) { transform: none; filter: none; }
 
-        :global(.big-tile__orb) {
-          position: absolute; top: -60px; right: -60px;
-          width: 220px; height: 220px; border-radius: 50%;
-          background: radial-gradient(circle at center, rgba(255,255,255,0.22), transparent 65%);
-          pointer-events: none;
+        /* Accent stripe — the only colored element on the card, so the
+           group identity reads at a glance without overwhelming. */
+        :global(.cat-card__stripe) {
+          position: absolute;
+          left: 0; top: 0; bottom: 0;
+          width: 5px;
+          background: var(--tile-accent);
+          border-radius: var(--r-lg) 0 0 var(--r-lg);
         }
-        :global(.big-tile__sheen) {
-          position: absolute; inset: 0;
-          background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 30%);
+
+        /* Animal icon — large, faded, sits to the right and never
+           interferes with the title. pointer-events:none so taps
+           pass through to the card itself. */
+        :global(.cat-card__icon) {
+          position: absolute;
+          right: -8px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--tile-accent);
+          opacity: 0.10;
           pointer-events: none;
         }
 
-        :global(.big-tile__top) { position: relative; z-index: 1; }
-        :global(.big-tile__eyebrow) {
-          display: inline-block;
-          padding: 6px 12px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.18);
-          backdrop-filter: blur(6px);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.95);
-        }
-
-        :global(.big-tile__bottom) {
-          position: relative; z-index: 1;
-          margin-top: auto;
-          display: flex; flex-direction: column; gap: 14px;
-        }
-        :global(.big-tile__title) {
-          font-size: 32px;
-          line-height: 1.05;
-          letter-spacing: -0.015em;
-          color: #fff;
-          font-weight: 400;
-        }
-        :global(.big-tile__subline) {
-          font-size: 13.5px;
-          color: rgba(255,255,255,0.85);
-          line-height: 1.5;
-        }
-        :global(.big-tile__cta) {
-          margin-top: 4px;
-          display: inline-flex; align-items: center;
-          gap: 8px;
-          align-self: flex-start;
-          padding: 9px 15px;
-          background: #fff;
-          color: var(--ink);
-          border-radius: 999px;
-          font-size: 13px;
-          font-weight: 600;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.18);
-          transition: transform 140ms ease;
-        }
-        :global(.big-tile__arrow) { transition: transform 140ms ease; }
-        :global(button.big-tile:hover .big-tile__cta)    { transform: translateX(2px); }
-        :global(button.big-tile:hover .big-tile__arrow)  { transform: translateX(3px); }
-
-        /* ── Embedded controls inside editor cards ──────────────── */
-        :global(.big-tile__controls) {
-          display: flex; align-items: stretch; gap: 10px;
-          flex-wrap: wrap;
-        }
-        :global(.big-tile__controls--stack) { flex-direction: column; }
-        :global(.big-tile__row) { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
-        :global(.big-tile__primary) {
-          display: inline-flex; align-items: center; justify-content: center;
-          gap: 8px;
-          padding: 14px 18px;
-          border-radius: 14px;
-          background: #fff;
-          color: var(--ink);
-          border: none;
-          font-family: inherit; font-size: 14px; font-weight: 600;
-          cursor: pointer;
-          box-shadow: 0 6px 16px rgba(0,0,0,0.22);
-          transition: transform 100ms ease, box-shadow 140ms ease, opacity 140ms ease;
-          min-height: 52px;
+        :global(.cat-card__body) {
+          position: relative;
+          z-index: 1;
           flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
-        :global(.big-tile__primary:hover) { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(0,0,0,0.30); }
-        :global(.big-tile__primary:active) { transform: translateY(0); }
-        :global(.big-tile__primary:disabled) { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
-        :global(.big-tile__primary--full) { width: 100%; flex: none; }
+        :global(.cat-card__title) {
+          font-size: var(--text-xl);    /* 20px on mobile */
+          font-weight: 400;             /* serif font carries the weight visually */
+          line-height: 1.15;
+          color: var(--ink);
+          letter-spacing: -0.015em;
+        }
+        :global(.cat-card__sub) {
+          font-size: var(--text-sm);
+          color: var(--ink-muted);
+          line-height: 1.4;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        :global(.cat-card__chev) {
+          position: relative;
+          z-index: 1;
+          flex-shrink: 0;
+          color: var(--ink-faint);
+          transition: transform 140ms ease, color 140ms ease;
+        }
+        :global(.cat-card:hover .cat-card__chev) {
+          color: var(--tile-accent);
+          transform: translateX(3px);
+        }
 
-        :global(.big-tile__breakdown) {
+        @media (min-width: 768px) {
+          :global(.cat-card) { min-height: 120px; padding: 18px 22px 18px 30px; }
+          :global(.cat-card__title) { font-size: var(--text-2xl); }
+          :global(.cat-card__icon)  { right: -4px; }
+        }
+
+        /* ─────────────────────────────────────────────────────────
+           Slide-down modal (GroupModal)
+           ─────────────────────────────────────────────────────────
+           Backdrop dims the page, modal drops in from above. Anchored
+           to the top of the viewport so the user's eye naturally goes
+           up to the title (the category they just tapped). */
+        :global(.gm-backdrop) {
+          position: fixed; inset: 0;
+          z-index: 100;
+          background: rgba(20,17,15,0.45);
+          backdrop-filter: blur(2px);
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          padding: 16px;
+          padding-top: max(16px, env(safe-area-inset-top));
+          overflow-y: auto;
+          animation: gm-fade 200ms ease-out;
+        }
+        @keyframes gm-fade { from { opacity: 0; } to { opacity: 1; } }
+
+        :global(.gm-modal) {
+          width: 100%;
+          max-width: 640px;
+          background: var(--surface);
+          border-radius: 18px;
+          border: 1px solid var(--border);
+          box-shadow: 0 30px 80px rgba(0,0,0,0.30), 0 8px 22px rgba(0,0,0,0.10);
+          overflow: hidden;
+          animation: gm-drop 260ms cubic-bezier(.2,.7,.2,1);
+        }
+        @keyframes gm-drop {
+          from { transform: translateY(-24px); opacity: 0; }
+          to   { transform: translateY(0); opacity: 1; }
+        }
+
+        :global(.gm-modal__head) {
+          position: relative;
+          display: flex; align-items: center;
+          gap: 14px;
+          padding: 16px 18px 16px 22px;
+          border-bottom: 1px solid var(--border-soft);
+          background: var(--surface);
+        }
+        :global(.gm-modal__accent) {
+          position: absolute;
+          left: 0; top: 0; bottom: 0;
+          width: 5px;
+          background: var(--tile-accent);
+        }
+        :global(.gm-modal__title-wrap) { flex: 1; min-width: 0; }
+        :global(.gm-modal__eyebrow) {
+          font-size: var(--text-xs);
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--ink-muted);
+        }
+        :global(.gm-modal__title) {
+          font-size: var(--text-2xl);
+          line-height: 1.15;
+          letter-spacing: -0.015em;
+          color: var(--ink);
+          margin-top: 2px;
+        }
+        :global(.gm-modal__close) {
+          width: 36px; height: 36px;
+          border-radius: 10px;
+          border: 1px solid var(--border);
+          background: var(--surface);
+          color: var(--ink-2);
+          cursor: pointer;
+          display: inline-flex; align-items: center; justify-content: center;
+          transition: all 120ms;
+          flex-shrink: 0;
+        }
+        :global(.gm-modal__close:hover) {
+          background: var(--ink); color: var(--bg); border-color: var(--ink);
+        }
+        :global(.gm-modal__body) {
+          padding: 16px;
+          display: flex; flex-direction: column;
+          gap: 10px;
+        }
+
+        /* ─────────────────────────────────────────────────────────
+           Editor card (.ec-card) — one row per sub-product inside
+           the modal. White background, left accent stripe in the
+           product's color, name + price on the left, controls +
+           Add button on the right. Wraps to two lines on phones.
+           ───────────────────────────────────────────────────────── */
+        :global(.ec-card) {
+          position: relative;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          align-items: center;
+          gap: 14px;
+          padding: 12px 14px 12px 22px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+        }
+        :global(.ec-card__stripe) {
+          position: absolute;
+          left: 0; top: 0; bottom: 0;
+          width: 4px;
+          background: var(--tile-accent);
+          border-radius: 12px 0 0 12px;
+        }
+        :global(.ec-card__head) { min-width: 0; }
+        :global(.ec-card__name) {
+          font-size: var(--text-base);
+          font-weight: 600;
+          color: var(--ink);
+          letter-spacing: -0.005em;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        :global(.ec-card__price) {
+          font-size: var(--text-xs);
+          color: var(--ink-muted);
+          margin-top: 2px;
+          font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+        :global(.ec-card__controls) {
+          display: flex; align-items: center;
+          gap: 10px;
+          justify-self: end;
+        }
+        :global(.ec-card__field) {
+          display: flex; flex-direction: column; gap: 4px;
+        }
+        :global(.ec-card__field > span) {
+          font-size: 10.5px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--ink-muted);
+        }
+        :global(.ec-card__field input) {
+          width: 110px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          outline: none;
+          color: var(--ink);
+          font-family: ui-monospace, SFMono-Regular, monospace;
+          font-size: var(--text-base);
+          text-align: center;
+        }
+        :global(.ec-card__field input:focus) {
+          border-color: var(--tile-accent);
+          box-shadow: 0 0 0 3px rgba(176,50,43,0.10);
+        }
+        :global(.ec-card__add) {
+          display: inline-flex; align-items: center; justify-content: center;
+          gap: 6px;
+          padding: 10px 14px;
+          border-radius: 10px;
+          background: var(--tile-accent);
+          color: #fff;
+          border: none;
+          font-family: inherit;
+          font-size: var(--text-sm);
+          font-weight: 600;
+          cursor: pointer;
+          min-height: 44px;
+          transition: filter 120ms ease, transform 80ms ease;
+        }
+        :global(.ec-card__add:hover) { filter: brightness(1.05); }
+        :global(.ec-card__add:active) { transform: translateY(1px); }
+        :global(.ec-card__add:disabled) {
+          background: var(--surface-2); color: var(--ink-faint);
+          cursor: not-allowed; transform: none;
+        }
+        :global(.ec-card__add--full) { width: 100%; }
+
+        /* Whole-goat variant: stacked layout (multiple fields + breakdown). */
+        :global(.ec-card--stack) {
+          grid-template-columns: 1fr;
+          gap: 12px;
+          padding: 14px 16px 14px 22px;
+        }
+        :global(.ec-card__grid) {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 12px;
+          align-items: end;
+        }
+        :global(.ec-card__breakdown) {
           display: flex; gap: 14px; flex-wrap: wrap;
           padding: 8px 12px;
-          background: rgba(0,0,0,0.18);
-          border-radius: 10px;
-          font-size: 12.5px;
-          color: rgba(255,255,255,0.92);
+          background: var(--surface-2);
+          border: 1px solid var(--border-soft);
+          border-radius: 8px;
+          font-size: var(--text-xs);
+          color: var(--ink-muted);
           font-family: ui-monospace, SFMono-Regular, monospace;
         }
+        :global(.ec-card__breakdown strong) { color: var(--ink); font-weight: 700; }
 
-        :global(.dark-field) {
-          display: flex; flex-direction: column; gap: 4px;
-          color: rgba(255,255,255,0.85);
-        }
-        :global(.dark-field > span) {
-          font-size: 10.5px;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.78);
-        }
-        :global(.dark-field input) {
-          padding: 13px 14px;
-          border-radius: 12px;
-          background: rgba(255,255,255,0.95);
-          color: var(--ink);
-          border: 1px solid rgba(255,255,255,0.65);
-          outline: none;
-          font-family: ui-monospace, SFMono-Regular, monospace;
-          font-size: 15px;
-          text-align: center;
-          min-height: 50px;
-          transition: box-shadow 140ms;
-        }
-        :global(.dark-field input:focus) {
-          box-shadow: 0 0 0 4px rgba(255,255,255,0.25);
-        }
-
-        :global(.dark-stepper) {
+        /* Stepper used inside editor cards (white background, dark ink) */
+        :global(.stepper) {
           display: inline-flex; align-items: stretch;
-          background: rgba(255,255,255,0.95);
-          border-radius: 12px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 10px;
           overflow: hidden;
-          height: 50px;
-          border: 1px solid rgba(255,255,255,0.65);
+          height: 44px;
         }
-        :global(.dark-stepper > button) {
-          width: 44px;
+        :global(.stepper > button) {
+          width: 40px;
           background: transparent;
           border: none;
-          color: var(--ink);
+          color: var(--ink-2);
           cursor: pointer;
           display: inline-flex; align-items: center; justify-content: center;
           transition: background 120ms;
         }
-        :global(.dark-stepper > button:hover) { background: rgba(0,0,0,0.08); }
-        :global(.dark-stepper input) {
-          width: 56px;
+        :global(.stepper > button:hover) { background: var(--surface-2); color: var(--ink); }
+        :global(.stepper input) {
+          width: 52px;
           border: none;
           outline: none;
           background: transparent;
           text-align: center;
-          font-size: 16px;
+          font-size: var(--text-base);
           font-weight: 600;
           font-family: ui-monospace, SFMono-Regular, monospace;
           color: var(--ink);
           font-feature-settings: 'tnum';
           -moz-appearance: textfield;
         }
-        :global(.dark-stepper input::-webkit-outer-spin-button),
-        :global(.dark-stepper input::-webkit-inner-spin-button) {
+        :global(.stepper input::-webkit-outer-spin-button),
+        :global(.stepper input::-webkit-inner-spin-button) {
           -webkit-appearance: none; margin: 0;
+        }
+
+        /* Mobile: editor cards wrap controls below name to give inputs
+           full width and avoid cramped rows. */
+        @media (max-width: 600px) {
+          :global(.ec-card) {
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
+          :global(.ec-card__controls) {
+            justify-self: stretch;
+            justify-content: space-between;
+          }
+          :global(.ec-card__field input) { width: 100%; }
         }
 
         /* ── Checkout grid (cart left + summary right) ──────────── */
