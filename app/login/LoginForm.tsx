@@ -119,17 +119,23 @@ export default function LoginForm() {
     }
   }
 
-  // keyboard (PIN mode only — letting it run in hero mode would steal focus from the inputs)
+  // PIN-mode focus guard: if focus drifts off the hidden input (e.g. the
+  // user taps somewhere else on the card), pull it back so keystrokes are
+  // captured. The keyboard itself is handled by the input's onChange — a
+  // second window-level keydown listener would double-fire every digit
+  // (it adds one, then the input event adds another, racing React's
+  // controlled re-render).
   useEffect(() => {
     if (mode !== 'pin') return;
-    const onKey = (e: KeyboardEvent) => {
+    const refocus = () => {
       if (loading || flying) return;
-      if (/^[0-9]$/.test(e.key)) { setDigits(pin + e.key); }
-      else if (e.key === 'Backspace') { setPin(p => p.slice(0, -1)); }
+      if (document.activeElement !== hiddenInput.current) {
+        hiddenInput.current?.focus();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [pin, loading, flying, mode]);
+    window.addEventListener('keydown', refocus);
+    return () => window.removeEventListener('keydown', refocus);
+  }, [loading, flying, mode]);
 
   return (
     <div style={{
